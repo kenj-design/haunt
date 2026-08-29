@@ -117,14 +117,29 @@ export function clearCachedPosition(): void {
   cachedPosition = null
 }
 
-function readPosition(): Promise<Position | null> {
+function readPosition(options: PositionOptions): Promise<Position | null> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: false, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: POSITION_TTL_MS },
+      options,
     )
+  })
+}
+
+/**
+ * A position good enough to claim you are standing somewhere.
+ *
+ * Never cached and high accuracy, unlike the one distances are drawn with: this
+ * is the reading the server checks against the zone, so a minute-old fix from
+ * the other side of town is exactly the thing to avoid.
+ */
+function preciseNow(): Promise<Position | null> {
+  return readPosition({
+    enableHighAccuracy: true,
+    timeout: GEOLOCATION_TIMEOUT_MS,
+    maximumAge: 0,
   })
 }
 
@@ -141,7 +156,11 @@ async function currentPosition(): Promise<Position | null> {
   if (cachedPosition && Date.now() - cachedPosition.at < POSITION_TTL_MS) {
     return cachedPosition.value
   }
-  const value = await readPosition()
+  const value = await readPosition({
+    enableHighAccuracy: false,
+    timeout: GEOLOCATION_TIMEOUT_MS,
+    maximumAge: POSITION_TTL_MS,
+  })
   cachedPosition = { value, at: Date.now() }
   return value
 }
@@ -258,6 +277,14 @@ export function createSupabaseDataSource(
     async loadSnapshot(): Promise<AppSnapshot> {
       const userId = await requireUserId()
 
+      // Before reading anything, let the server notice haunts nearby. This is
+      // what populates `visits.near_at`, so the "did you make it?" prompt is
+      // part of the same snapshot rather than appearing a beat later.
+      const position = await currentPosition()
+      if (position) {
+        await supabase.rpc('record_proximity', { p_lat: position.lat, p_lng: position.lng })
+      }
+
       // Independent reads, so they go out together rather than in a queue.
       const [user, friends, haunts, keepsakes, notificationRows, friendRequests, missed] =
         await Promise.all([
@@ -305,8 +332,27 @@ export function createSupabaseDataSource(
     },
 
     async arriveAtHaunt(hauntId: string): Promise<Haunt> {
-      const { error } = await supabase.rpc('arrive_at_haunt', { p_haunt: hauntId })
+      // Deliberately not the cached fix: this is the reading the server checks
+      // against the zone, so it has to be current and as accurate as available.
+      const position = await preciseNow()
+      if (!position) {
+        throw new DataError(
+          'not-permitted',
+          'haunt needs your location to know you made it',
+        )
+      }
+
+      const { error } = await supabase.rpc('arrive_at_haunt', {
+        p_haunt: hauntId,
+        p_lat: position.lat,
+        p_lng: position.lng,
+      })
+      // A refusal here carries how far off you are; let it through rather than
+      // flattening it into a generic failure.
       if (error) throw toDataErrorFrom(error, "couldn't mark you as here")
+
+      // The fresh fix is better than whatever was cached, so distances get it too.
+      cachedPosition = { value: position, at: Date.now() }
       return readHaunt(hauntId)
     },
 

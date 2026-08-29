@@ -179,6 +179,14 @@ export function createMockDataSource(options: MockDataSourceOptions = {}): Haunt
       })
     },
 
+    /*
+     * Unlike the real backend, this does not check where you are.
+     *
+     * The mock's zones live on an abstract 0–100 plane with no geography behind
+     * them, so there is nothing to measure a position against. Arrival
+     * verification is a Supabase-only rule; see `0006_arrival.sql`. Anything
+     * relying on it being enforced has to be tested against the real backend.
+     */
     arriveAtHaunt(hauntId) {
       return call(() => {
         const haunt = requireHaunt(hauntId)
