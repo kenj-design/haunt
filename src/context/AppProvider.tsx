@@ -152,6 +152,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearFocusHaunt = useCallback(() => setFocusHauntId(null), [])
 
+  // --- account ---------------------------------------------------------------
+
+  /**
+   * Signing in re-runs boot, which is what turns a session into a loaded app.
+   *
+   * These are handed to `SignIn` as plain callbacks rather than the gateway
+   * itself, so a screen never holds a piece of the data layer.
+   */
+  const startFresh = useCallback(async () => {
+    await authGatewayRef.current?.startFresh()
+    await boot()
+  }, [boot])
+
+  const recoverWithCode = useCallback(
+    async (code: string) => {
+      await authGatewayRef.current?.signInWithRecoveryCode(code)
+      await boot()
+    },
+    [boot],
+  )
+
   const createRecoveryCode = useCallback(async () => {
     const gateway = authGatewayRef.current
     if (!gateway) throw new Error('this backend has no accounts')
@@ -375,7 +396,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   if (status === 'signed-out' && authGatewayRef.current) {
     return (
       <PhoneFrame>
-        <SignIn gateway={authGatewayRef.current} onSignedIn={() => void boot()} />
+        <SignIn onStartFresh={startFresh} onRecoverWithCode={recoverWithCode} />
       </PhoneFrame>
     )
   }

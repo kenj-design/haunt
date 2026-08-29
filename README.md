@@ -53,6 +53,7 @@ supabase/
 docs/
   architecture.md   how the layers fit together and why
   supabase.md       standing up the real backend, and what is still unverified
+  deploy.md         Supabase + GitHub + Vercel, start to finish
 ```
 
 The dependency rule is one-directional: screens know about `domain` and
@@ -82,7 +83,20 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 No screen changes. See [docs/supabase.md](docs/supabase.md) for the migrations
-and — importantly — for what has not yet been run against a live database.
+and — importantly — for what has not yet been run against a live database, and
+[docs/deploy.md](docs/deploy.md) for getting it online.
+
+### Accounts
+
+Only the Supabase backend has them, and there is no email field anywhere.
+Opening the app creates an anonymous account tied to the device. A **recovery
+code** — sixteen characters, shown exactly once — is what carries that account to
+another device.
+
+Both halves of the credential are derived from the code by SHA-256, so nothing
+stores the code or a hash of it. That is why it cannot be shown twice and why
+nobody can look it up for someone who lost it. The mock backend skips all of
+this: it is a single imaginary person.
 
 ### Making the mock backend behave like a real one
 
@@ -124,17 +138,17 @@ Every token lives in the `@theme` block at the top of
 The prototype validates the feel. Production is React Native + Expo against the
 Supabase schema in `supabase/migrations/`, with Mapbox in place of Leaflet.
 
-The largest pieces still missing, in the order they block each other:
+The largest pieces still missing:
 
-1. **Authentication.** The schema assumes `auth.uid()` returns someone. There is
-   no sign-in flow yet; magic link is the natural fit.
-2. **Geofencing.** `visits.near_at` is what the "did you make it?" prompt reads,
+1. **Geofencing.** `visits.near_at` is what the "did you make it?" prompt reads,
    and nothing writes it. It needs a background location task, which is a native
    concern.
-3. **Health decay.** A visit fogs a zone; quiet time is supposed to clear it.
+2. **Health decay.** A visit fogs a zone; quiet time is supposed to clear it.
    The dip is implemented, the recovery is not — it wants a scheduled job.
-4. **Residues and sigils.** Modelled in both the schema and the domain, with the
+3. **Residues and sigils.** Modelled in both the schema and the domain, with the
    UI built and waiting in `src/components/unwired/`.
+4. **A live run.** None of the SQL has executed against a real Postgres. The
+   first deploy is a bring-up, not a release.
 
 ## Attribution
 

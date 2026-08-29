@@ -11,6 +11,8 @@
  * which is why saving it is a step you cannot walk past.
  */
 
+import { config } from '../config'
+
 export interface AuthSession {
   userId: string
   /**
@@ -48,9 +50,15 @@ export interface AuthGateway {
   signOut(): Promise<void>
 }
 
-/** Builds the gateway for the configured backend, or `null` if it has no accounts. */
+/**
+ * Builds the gateway for the configured backend, or `null` if it has no accounts.
+ *
+ * `config` is imported statically on purpose: Vite inlines the environment at
+ * build time, so a static read lets it fold this branch away entirely and leave
+ * the Supabase client out of a mock build. A dynamic import here would defeat
+ * that and ship a couple of hundred kilobytes nothing ever fetches.
+ */
 export async function createAuthGateway(): Promise<AuthGateway | null> {
-  const { config } = await import('../config')
   if (config.dataSource !== 'supabase') return null
   const { createSupabaseAuthGateway } = await import('./supabase/supabaseAuthGateway')
   return createSupabaseAuthGateway()

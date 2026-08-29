@@ -13,6 +13,10 @@
  *
  * The derived address uses `.invalid`, which RFC 2606 reserves as permanently
  * undeliverable — nothing here should ever look like a real mailbox.
+ *
+ * Pure by design: no Supabase, no React, nothing to mock. The format rules are
+ * shared by the sign-in screen and the auth gateway, and neither should have to
+ * reach into the other to get them.
  */
 
 /**

@@ -6,9 +6,11 @@ part first — what has and has not actually been tested.
 
 ## Status
 
-**The SQL and the adapter have never run against a live Postgres.** They are
-written carefully and the TypeScript typechecks, but no migration has been
-applied and no query has been executed. Treat the first run as a bring-up, not a
+**The SQL, the adapter, and the auth gateway have never run against a live
+Supabase project.** They are written carefully and the TypeScript typechecks, but
+no migration has been applied and no query has been executed. The sign-in and
+recovery-code screens have been exercised against a stand-in gateway, so the UI
+and the code format are known good; what Supabase does with them is not. Treat the first run as a bring-up, not a
 deployment, and work through [Verifying it](#verifying-it) before trusting it.
 
 Everything else in the app — the domain model, the data-source seam, the mock
@@ -95,7 +97,16 @@ involved, a policy is enough.
 1. Create a project at [supabase.com](https://supabase.com). Note the project
    URL and the anon key from **Project Settings → API**.
 
-2. Apply the migrations, in order. With the CLI:
+2. Turn on two auth settings. Both are required and the app does not work
+   without them — see [Accounts](#accounts) for why.
+
+   - **Authentication → Providers → Anonymous sign-ins: on.** Opening the app
+     creates an account this way.
+   - **Authentication → Providers → Email → Confirm email: off.** Securing an
+     account writes a deliberately undeliverable `@haunt.invalid` address, so a
+     confirmation step would strand every account at the moment it is created.
+
+3. Apply the migrations, in order. With the CLI:
 
    ```bash
    supabase link --project-ref <your-project-ref>
@@ -106,7 +117,7 @@ involved, a policy is enough.
    `postgis` and `citext` extensions; if your plan or region blocks either, stop
    there rather than working around it — the zone column depends on PostGIS.
 
-3. Point the app at it:
+4. Point the app at it:
 
    ```bash
    cp .env.example .env.local
@@ -118,20 +129,44 @@ involved, a policy is enough.
    VITE_SUPABASE_ANON_KEY=your-anon-key
    ```
 
-4. Restart the dev server. Vite reads `.env.local` at startup only.
+5. Restart the dev server. Vite reads `.env.local` at startup only.
 
 The anon key ships inside the client bundle. That is safe **only** because RLS is
 enabled on every table — the key identifies the app, and the signed-in user's JWT
 decides what they can reach. If RLS were ever disabled on a table, that key
 becomes a public door to it.
 
-## What is missing
+## Accounts
 
-**Authentication.** There is no sign-in flow. The schema assumes `auth.uid()`
-returns someone, and `0004_writes.sql` installs a trigger that creates a profile
-row for each new `auth.users` record with a placeholder handle, which onboarding
-then replaces. Wiring up a provider — magic link is the natural fit — is the
-first thing to build.
+There is no email field anywhere, and no password to invent. Opening the app
+calls `signInAnonymously()`, which is a real `auth.users` row with a real
+session; the `handle_new_user` trigger gives it a profile, and every policy
+treats it like any other user.
+
+That account lives on one device. A **recovery code** is what moves it:
+
+- 16 characters, 80 bits of randomness, shown exactly once.
+- Both halves of a credential — an `@haunt.invalid` address and a password — are
+  derived from the code by SHA-256. Making the code calls
+  `updateUser({ email, password })` on the anonymous account, upgrading it in
+  place. The user id never changes, so nothing they have made is re-keyed.
+- Entering the code on another device recomputes the same pair and signs in.
+- Nothing stores the code, or a hash of it, or a list of which codes exist. That
+  is why it cannot be shown twice, and why nobody can look it up for a user who
+  lost it.
+
+The security rests on the code's entropy. 80 bits against Supabase's per-IP auth
+rate limiting is far past brute force. Two things worth doing before this is
+public:
+
+- **Turn on CAPTCHA** for auth endpoints (Authentication → Settings). Anonymous
+  sign-in is otherwise an open door to creating rows.
+- **Clean up abandoned anonymous accounts.** Anyone who opens the app and leaves
+  without making a code is a permanent row. A scheduled job deleting
+  `auth.users` where `is_anonymous` and `created_at < now() - interval '30 days'`
+  keeps that from accumulating.
+
+## What is missing
 
 **Geofencing.** `visits.near_at` is what the missed-visit prompt reads, and
 nothing writes it yet. It wants a background location task posting nearby haunts,
@@ -150,19 +185,25 @@ built and sitting in `src/components/unwired/`. Neither has a write path yet.
 
 In rough order of how likely each is to be wrong:
 
-1. **The migrations apply cleanly.** They have never been run. Expect to fix
+1. **Anonymous sign-in works at all.** If the provider is off, the sign-in
+   screen fails on "start here" with the reason Supabase gives.
+2. **A recovery code round-trips.** Make one, note it, open the app in a private
+   window, choose "I have a recovery code", and confirm you land on the same
+   account with the same haunts. If email confirmation is still on, this is
+   where it fails.
+3. **The migrations apply cleanly.** They have never been run. Expect to fix
    something.
-2. **`haunt_feed` returns rows at all.** It is the largest function here and
+4. **`haunt_feed` returns rows at all.** It is the largest function here and
    everything reads through it. Call it directly in the SQL editor as a real user
    before blaming the client.
-3. **Shrouding actually shrouds.** Sign in as a friend-of-a-friend and confirm
+5. **Shrouding actually shrouds.** Sign in as a friend-of-a-friend and confirm
    the name comes back `???` with no story, no arrival note, and no photo paths.
    This is the rule most worth a test, because failing open leaks a place.
-4. **The arrival note stays sealed.** `haunt_feed` returns an empty note until
+6. **The arrival note stays sealed.** `haunt_feed` returns an empty note until
    `visits.arrived_at` is set. Check it before arriving, not only after.
-5. **`haunt_health` is unreadable by anyone but the finder.** Query it directly
+7. **`haunt_health` is unreadable by anyone but the finder.** Query it directly
    as another user and confirm you get nothing.
-6. **Storage paths line up.** Photos upload to
+8. **Storage paths line up.** Photos upload to
    `<profile_id>/<haunt_id>/photo-N.<ext>`, and the read policy parses the second
    segment as a haunt id. A change to either has to change both.
 

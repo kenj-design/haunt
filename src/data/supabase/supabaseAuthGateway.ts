@@ -21,7 +21,7 @@
 import { DataError } from '../dataSource'
 import type { AuthGateway, AuthSession } from '../auth'
 import { getSupabaseClient } from './client'
-import { deriveCredentials, generateRecoveryCode } from './recoveryCode'
+import { deriveCredentials, generateRecoveryCode } from '../../lib/recoveryCode'
 import type { User } from '@supabase/supabase-js'
 
 /** An account is device-local until it has an address derived from a code. */

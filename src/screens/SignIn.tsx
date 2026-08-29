@@ -11,16 +11,19 @@
 
 import { useState } from 'react'
 import { ArrowLeft, KeyRound } from 'lucide-react'
-import type { AuthGateway } from '../data/auth'
-import { formatRecoveryCode, isRecoveryCodeComplete, normalizeRecoveryCode } from '../data/supabase/recoveryCode'
+import {
+  formatRecoveryCode,
+  isRecoveryCodeComplete,
+  normalizeRecoveryCode,
+} from '../lib/recoveryCode'
 import { PrimaryButton } from '../components/ui'
 
 export default function SignIn({
-  gateway,
-  onSignedIn,
+  onStartFresh,
+  onRecoverWithCode,
 }: {
-  gateway: AuthGateway
-  onSignedIn: () => void
+  onStartFresh: () => Promise<void>
+  onRecoverWithCode: (code: string) => Promise<void>
 }) {
   const [mode, setMode] = useState<'choose' | 'code'>('choose')
   const [code, setCode] = useState('')
@@ -29,12 +32,13 @@ export default function SignIn({
 
   const ready = isRecoveryCodeComplete(code)
 
-  const run = async (action: () => Promise<unknown>) => {
+  const run = async (action: () => Promise<void>) => {
     setBusy(true)
     setError(null)
     try {
       await action()
-      onSignedIn()
+      // On success this screen is replaced, so `busy` is left set deliberately:
+      // clearing it would flash the buttons back to life mid-transition.
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'something went wrong')
       setBusy(false)
@@ -79,7 +83,7 @@ export default function SignIn({
             </p>
 
             <div className="mt-9 flex flex-col gap-2">
-              <PrimaryButton disabled={busy} onClick={() => void run(() => gateway.startFresh())}>
+              <PrimaryButton disabled={busy} onClick={() => void run(onStartFresh)}>
                 {busy ? 'opening…' : 'start here'}
               </PrimaryButton>
               <PrimaryButton variant="ghost" disabled={busy} onClick={() => setMode('code')}>
@@ -130,7 +134,7 @@ export default function SignIn({
             <div className="mt-7">
               <PrimaryButton
                 disabled={!ready || busy}
-                onClick={() => void run(() => gateway.signInWithRecoveryCode(code))}
+                onClick={() => void run(() => onRecoverWithCode(code))}
               >
                 {busy ? 'looking…' : 'bring it here'}
               </PrimaryButton>
