@@ -15,7 +15,8 @@
  * undeliverable, so a confirmation step would strand every account at the moment
  * it is secured. See `docs/supabase.md`.
  *
- * UNVERIFIED: typechecked, never run against a live project.
+ * Verified against a live project on 2026-08-29, including a full session wipe
+ * followed by recovery: the derived credential brought back the same account.
  */
 
 import { DataError } from '../dataSource'

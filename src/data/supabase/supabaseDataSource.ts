@@ -18,8 +18,10 @@
  * only because the client is untyped: generate `Database` types (see `rows.ts`)
  * and the inference becomes exact, at which point they can all come out.
  *
- * UNVERIFIED: this has been typechecked but never run against a live project.
- * See `docs/supabase.md` for how to stand one up and what to check first.
+ * Verified against a live project on 2026-08-29: sign-in, onboarding, dropping
+ * a haunt, sharing it, and reading it all back through `haunt_feed`. Passing and
+ * visiting another person's haunt are not yet exercised — see `docs/supabase.md`
+ * for exactly what is and is not proven.
  */
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'

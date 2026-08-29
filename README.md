@@ -147,8 +147,9 @@ The largest pieces still missing:
    The dip is implemented, the recovery is not — it wants a scheduled job.
 3. **Residues and sigils.** Modelled in both the schema and the domain, with the
    UI built and waiting in `src/components/unwired/`.
-4. **A live run.** None of the SQL has executed against a real Postgres. The
-   first deploy is a bring-up, not a release.
+4. **Multi-account paths.** Passing a haunt, visiting someone else's, and
+   friend-of-a-friend shrouding are unproven end to end — there is no
+   friend-request UI, so two connected accounts cannot be set up from the app.
 
 ## Attribution
 
