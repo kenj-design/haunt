@@ -26,6 +26,10 @@ isolated browser sessions on the live deployment:
   `@alpha` — sees `???` and nothing else. The payload was searched for the name,
   the finder, the story, and the note: **none present**. Before connecting to
   `@beta`, `@gamma` saw nothing at all.
+- **Arrival is geofenced.** With `@beta`'s visit reset and a spoofed position
+  6.6 km out, "mark that I'm here" was refused — *"you are still about 6640 m
+  away"*, the haunt stayed locked, and the note stayed out of the payload. From
+  150 m, inside the 200 m zone, it succeeded and the note appeared.
 
 The predicates were also unit-tested in SQL and fail closed: a stranger gets
 `can_see_haunt = false` and `haunt_is_shrouded = true`, and `haunt_feed` run as
@@ -37,6 +41,12 @@ Shrouding is the rule worth re-testing after any change to `haunt_feed` or
 
 ### Still unverified
 
+- **`record_proximity` firing on its own.** The function is deployed and
+  `arrive_at_haunt` writes `near_at`, but the "did you make it?" prompt
+  appearing purely from walking past has not been seen end to end — testing it
+  needs control of the position *at page load*, before the app asks for it, and
+  a browser geolocation override was not available here. Worth checking on a
+  real phone, which is where it matters anyway.
 - **Photo upload and signed URLs.** The storage policies applied but no file has
   been through them.
 - **Health decay recovery.** The dip on visit works; nothing restores it yet.
@@ -70,6 +80,7 @@ supabase/migrations/
   0003_reads.sql       haunt_feed, haunt_lineage, profile_snapshot, friend_list
   0004_writes.sql      the compound mutations, as RPCs
   0005_friend_requests.sql  asking to know someone, by exact handle
+  0006_arrival.sql     arrival checked against a real position
 ```
 
 `mockDataSource.ts` is the specification. When a rule is ambiguous — what a visit

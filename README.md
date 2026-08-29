@@ -144,9 +144,10 @@ The largest pieces still missing:
 
 1. **Realtime.** Another person's activity appears on your next load, not as
    it happens. Supabase Realtime on `notifications` would close that.
-2. **Geofencing.** `visits.near_at` is what the "did you make it?" prompt reads,
-   and nothing writes it. It needs a background location task, which is a native
-   concern.
+2. **Background geofencing.** Arrival is now checked against a real position,
+   but only while the app is open. Noticing that you walked past somewhere with
+   your phone in your pocket needs a background location task, which is a native
+   concern — the web build can only look when it is looking.
 3. **Health decay.** A visit fogs a zone; quiet time is supposed to clear it.
    The dip is implemented, the recovery is not — it wants a scheduled job.
 4. **Residues and sigils.** Modelled in both the schema and the domain, with the
