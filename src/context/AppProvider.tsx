@@ -63,6 +63,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pendingCount, setPendingCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [needsRecoveryCode, setNeedsRecoveryCode] = useState(false)
+  const [hasAccounts, setHasAccounts] = useState(false)
 
   const [tab, setTabState] = useState<Tab>('map')
   const [stack, setStack] = useState<Screen[]>([{ name: 'map' }])
@@ -78,6 +79,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         authGatewayRef.current = await createAuthGateway()
       }
       const gateway = authGatewayRef.current
+      setHasAccounts(gateway !== null)
 
       if (gateway) {
         const session = await gateway.currentSession()
@@ -343,6 +345,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       missedVisitId: snapshot.missedVisitId,
       notificationsUnread: snapshot.notificationsUnread,
       needsRecoveryCode,
+      hasAccounts,
       createRecoveryCode,
       confirmRecoveryCodeSaved,
       isBusy: pendingCount > 0,
@@ -374,6 +377,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     error,
     dismissError,
     needsRecoveryCode,
+    hasAccounts,
     createRecoveryCode,
     confirmRecoveryCodeSaved,
     completeOnboarding,

@@ -26,6 +26,7 @@ export type Screen =
   | { name: 'pass'; hauntId: string }
   | { name: 'drop' }
   | { name: 'notifications' }
+  | { name: 'recovery' }
   | { name: 'friend'; handle: string }
 
 export type Tab = 'map' | 'profile'
@@ -47,6 +48,8 @@ export interface AppState {
    * the device loses everything. Always false on a backend without accounts.
    */
   needsRecoveryCode: boolean
+  /** Whether this backend has accounts. False on the mock backend. */
+  hasAccounts: boolean
   /** Mints a recovery code and returns it once. Never callable twice for the same code. */
   createRecoveryCode: () => Promise<string>
   /** Marks the code as saved, releasing the shell. */

@@ -6,7 +6,7 @@
  * their vibe and how many people you share — and no list of their places. Their
  * haunts reach you by being passed, never by being browsed.
  */
-import { Check, X } from 'lucide-react'
+import { Check, KeyRound, X } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { Avatar, ScreenHeader, VibePill } from '../components/ui'
 
@@ -28,8 +28,17 @@ export default function Profile({
   variant: 'own' | 'friend'
   handle?: string
 }) {
-  const { user, friends, keepsakes, incomingRequest, acceptRequest, ignoreRequest, goBack, navigate } =
-    useApp()
+  const {
+    user,
+    friends,
+    keepsakes,
+    incomingRequest,
+    acceptRequest,
+    ignoreRequest,
+    goBack,
+    navigate,
+    hasAccounts,
+  } = useApp()
   const friend = variant === 'friend' ? friends.find((f) => f.handle === handle) : null
   const shown = friend
     ? // A friend's join date isn't on the friend list yet; a profile endpoint will carry it.
@@ -110,6 +119,33 @@ export default function Profile({
               ))}
             </div>
           </div>
+
+          {/*
+            Only shown on a backend that has accounts. The existing code cannot
+            be displayed — it is not stored — so the only thing on offer is
+            replacing it, which is exactly what someone whose code got out needs.
+          */}
+          {hasAccounts && (
+            <div className="mt-8 px-5">
+              <p className="text-[14px] font-medium tracking-[-0.015em] text-ink-2">Account</p>
+              <button
+                type="button"
+                onClick={() => navigate({ name: 'recovery' })}
+                className="premium-card mt-3 flex w-full pressable cursor-pointer items-center gap-3 rounded-[22px] px-4 py-3.5 text-left transition-colors duration-200 hover:bg-white/[0.09]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.055] text-white/68">
+                  <KeyRound size={14} strokeWidth={1.5} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-ink">Recovery code</span>
+                  <span className="mt-0.5 block text-[10px] text-ink-3">
+                    make a new one if yours got out
+                  </span>
+                </span>
+                <span className="shrink-0 text-[11px] text-ink-3">replace →</span>
+              </button>
+            </div>
+          )}
 
           <div className="mt-8 px-5">
             <div className="flex items-baseline justify-between gap-3">

@@ -83,6 +83,19 @@ function ErrorToast() {
   )
 }
 
+/** The profile's route into replacing a code. */
+function RecoveryCodeScreen() {
+  const { createRecoveryCode, goBack } = useApp()
+  return (
+    <SaveRecoveryCode
+      variant="replace"
+      createCode={createRecoveryCode}
+      onDone={goBack}
+      onBack={goBack}
+    />
+  )
+}
+
 function Router() {
   const { screen } = useApp()
   switch (screen.name) {
@@ -102,6 +115,8 @@ function Router() {
       return <DropHaunt />
     case 'notifications':
       return <Notifications />
+    case 'recovery':
+      return <RecoveryCodeScreen />
   }
 }
 
@@ -122,7 +137,7 @@ function Shell() {
         ) : needsRecoveryCode ? (
           <SaveRecoveryCode
             createCode={createRecoveryCode}
-            onSaved={confirmRecoveryCodeSaved}
+            onDone={confirmRecoveryCodeSaved}
           />
         ) : (
           <>
