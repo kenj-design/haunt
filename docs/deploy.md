@@ -1,8 +1,17 @@
 # Getting it online
 
-Front to back: a Supabase project, a GitHub repo, and a Vercel deployment. About
-half an hour if nothing fights you, and something will — see
-[When it breaks](#when-it-breaks).
+Front to back: a Supabase project, a GitHub repo, and a Vercel deployment.
+
+**This has been done once already**, on 2026-08-29:
+
+| | |
+| --- | --- |
+| Live | [haunt-alpha.vercel.app](https://haunt-alpha.vercel.app) |
+| Repo | `kenj-design/haunt`, deploys from `main` |
+| Supabase | project `ueftjjrdjdbwoiigdnxk` |
+
+Pushing to `main` redeploys. What follows is the record of how it was set up,
+and what to do if it breaks — see [When it breaks](#when-it-breaks).
 
 Do them in this order. Vercel needs the Supabase keys at build time, so the
 project has to exist first.

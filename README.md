@@ -6,10 +6,12 @@ location stays hidden inside a vague zone, and the note waiting there stays
 sealed until you physically arrive. Places travel person to person, never through
 a feed.
 
-This repository is a clickable front-end prototype: every screen and flow is
-real, and the data behind them comes from fixtures. It is built to have a backend
-put underneath it, and [the seam for that](#swapping-the-backend) is already in
-place along with a full Supabase schema.
+**Live: [haunt-alpha.vercel.app](https://haunt-alpha.vercel.app)** — running on
+Supabase, deployed from `main`.
+
+Every screen and flow is real. It runs on either of two backends behind one
+interface: an in-memory mock seeded from fixtures, or Postgres with PostGIS and
+row-level security. Which one is a single environment variable.
 
 ## Running it
 
