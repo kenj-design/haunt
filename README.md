@@ -142,16 +142,17 @@ Supabase schema in `supabase/migrations/`, with Mapbox in place of Leaflet.
 
 The largest pieces still missing:
 
-1. **Geofencing.** `visits.near_at` is what the "did you make it?" prompt reads,
+1. **Realtime.** Another person's activity appears on your next load, not as
+   it happens. Supabase Realtime on `notifications` would close that.
+2. **Geofencing.** `visits.near_at` is what the "did you make it?" prompt reads,
    and nothing writes it. It needs a background location task, which is a native
    concern.
-2. **Health decay.** A visit fogs a zone; quiet time is supposed to clear it.
+3. **Health decay.** A visit fogs a zone; quiet time is supposed to clear it.
    The dip is implemented, the recovery is not — it wants a scheduled job.
-3. **Residues and sigils.** Modelled in both the schema and the domain, with the
+4. **Residues and sigils.** Modelled in both the schema and the domain, with the
    UI built and waiting in `src/components/unwired/`.
-4. **Multi-account paths.** Passing a haunt, visiting someone else's, and
-   friend-of-a-friend shrouding are unproven end to end — there is no
-   friend-request UI, so two connected accounts cannot be set up from the app.
+5. **Photo upload.** The storage bucket and its policies exist; no file has
+   been through them yet.
 
 ## Attribution
 

@@ -6,15 +6,51 @@ part first — what has and has not actually been tested.
 
 ## Status
 
-**The SQL, the adapter, and the auth gateway have never run against a live
-Supabase project.** They are written carefully and the TypeScript typechecks, but
-no migration has been applied and no query has been executed. The sign-in and
-recovery-code screens have been exercised against a stand-in gateway, so the UI
-and the code format are known good; what Supabase does with them is not. Treat the first run as a bring-up, not a
-deployment, and work through [Verifying it](#verifying-it) before trusting it.
+**Applied and working** against project `ueftjjrdjdbwoiigdnxk`, verified
+2026-08-29 with three connected accounts (`@alpha`, `@beta`, `@gamma`) in
+isolated browser sessions on the live deployment:
 
-Everything else in the app — the domain model, the data-source seam, the mock
-backend — is exercised and working.
+- **Accounts.** Anonymous sign-in, `complete_onboarding`, and a recovery code
+  that survived a full session wipe and brought the same account back.
+- **Asking and accepting.** `@beta` asked `@alpha` by exact handle; `@alpha`
+  accepted.
+- **The friendship gate.** `@alpha`'s haunt was **invisible** to `@beta` before
+  they connected and appeared immediately after. `can_see_haunt` does that, not
+  the UI.
+- **The arrival note stays sealed.** Before arriving, `@beta` could read the
+  story but the note was **not in the response at all** — withheld by
+  `haunt_feed`, not hidden by the client. It appeared on arrival.
+- **`drop_haunt`, `log_visit`, `pass_haunt`.** All three write correctly;
+  lineage grew to `@alpha → @beta`, and the finder was notified by name.
+- **Friend-of-a-friend shrouding.** `@gamma` — friend of `@beta`, stranger to
+  `@alpha` — sees `???` and nothing else. The payload was searched for the name,
+  the finder, the story, and the note: **none present**. Before connecting to
+  `@beta`, `@gamma` saw nothing at all.
+
+The predicates were also unit-tested in SQL and fail closed: a stranger gets
+`can_see_haunt = false` and `haunt_is_shrouded = true`, and `haunt_feed` run as
+the `postgres` superuser returns **zero rows**, because it gates on `auth.uid()`
+rather than on role.
+
+Shrouding is the rule worth re-testing after any change to `haunt_feed` or
+`haunt_is_shrouded`: failing open leaks somebody's private place.
+
+### Still unverified
+
+- **Photo upload and signed URLs.** The storage policies applied but no file has
+  been through them.
+- **Health decay recovery.** The dip on visit works; nothing restores it yet.
+
+### Known behaviour, not bugs
+
+**No realtime.** Another person's activity appears on your next load, not as it
+happens — `@alpha` had to reload before `@beta`'s visit notification showed.
+Supabase Realtime on `notifications` would close that gap.
+
+**`spatial_ref_sys` has RLS disabled.** That is PostGIS's read-only catalogue of
+map projections, created and owned by the extension. It holds no user data, and
+every table in this schema does have RLS on.
+
 
 ## The shape of it
 
@@ -33,6 +69,7 @@ supabase/migrations/
   0002_security.sql    RLS policies and the helper functions behind them
   0003_reads.sql       haunt_feed, haunt_lineage, profile_snapshot, friend_list
   0004_writes.sql      the compound mutations, as RPCs
+  0005_friend_requests.sql  asking to know someone, by exact handle
 ```
 
 `mockDataSource.ts` is the specification. When a rule is ambiguous — what a visit
