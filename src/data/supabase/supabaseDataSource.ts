@@ -57,6 +57,17 @@ import type {
 const GEOLOCATION_TIMEOUT_MS = 8_000
 
 /**
+ * How long a fix stays good enough to reuse.
+ *
+ * Every read passes the viewer's position to `haunt_feed`, and re-reading one
+ * haunt after a mutation is a read. Without this, each of those waits on the
+ * geolocation API again — up to the timeout above when permission is denied or
+ * pending, which shows up as the UI taking eight seconds to catch up with a
+ * write that already succeeded. Nobody moves far enough in a minute to matter.
+ */
+const POSITION_TTL_MS = 60_000
+
+/**
  * Postgres error codes, translated into something the UI can act on.
  *
  * The RPCs raise these deliberately — `42501` for a rule the caller broke,
@@ -93,22 +104,46 @@ function unwrap<T>(
   return response.data
 }
 
-/**
- * The viewer's position, or `null` if they declined or it timed out.
- *
- * Distances are a courtesy, not a requirement: without a position the feed still
- * loads and every haunt simply has no distance to show.
- */
-async function currentPosition(): Promise<{ lat: number; lng: number } | null> {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return null
+export interface Position {
+  lat: number
+  lng: number
+}
+
+/** The last fix, and when it was taken. `null` covers "asked, and got nothing". */
+let cachedPosition: { value: Position | null; at: number } | null = null
+
+/** Forgets the cached fix, so the next read asks again. */
+export function clearCachedPosition(): void {
+  cachedPosition = null
+}
+
+function readPosition(): Promise<Position | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      (position) =>
-        resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: false, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: 60_000 },
+      { enableHighAccuracy: false, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: POSITION_TTL_MS },
     )
   })
+}
+
+/**
+ * The viewer's position, reusing a recent fix.
+ *
+ * A refusal is cached the same as a fix: someone who declined once should not be
+ * made to wait out the timeout on every subsequent read.
+ *
+ * Distances are a courtesy, not a requirement — without a position the feed
+ * still loads and every haunt simply has no distance to show.
+ */
+async function currentPosition(): Promise<Position | null> {
+  if (cachedPosition && Date.now() - cachedPosition.at < POSITION_TTL_MS) {
+    return cachedPosition.value
+  }
+  const value = await readPosition()
+  cachedPosition = { value, at: Date.now() }
+  return value
 }
 
 export function createSupabaseDataSource(
