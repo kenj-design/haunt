@@ -1,0 +1,26 @@
+# Unwired components
+
+Built, styled, and typechecked — but nothing in `src/screens` imports them yet.
+They live here so the main `components/` folder only holds what actually renders,
+without throwing away design work that a later flow will want.
+
+Each one still compiles against the current domain model, so they stay honest as
+the types change. When a flow adopts one, move it up a directory and delete its
+row from this table.
+
+| Component | What it does | What it needs to ship |
+| --- | --- | --- |
+| `DumaguetePickerMap.tsx` | Full Leaflet map for choosing a haunt's zone: drag, tap-to-place, pinch/wheel zoom, arrow-key nudging, live radius projection. | Drop a Haunt currently fixes the zone at `{ x: 44, y: 44 }` and shows a static tile. Wire this in to let people place it, then feed the result to `dropHaunt`. |
+| `ImprintControls.tsx` | Picks a haunt's shroud temperament and lifespan (`lasting` / `single` / `dated`). | Both fields exist on `Haunt` and are honoured by `isHauntActive` and the shader, but Drop a Haunt hardcodes `lifespan: 'lasting'` and a seeded temperament. |
+| `Residue.tsx` | Leaving and displaying visitor traces — a coloured mark placed in the haunt's field. | `Haunt.residues` is modelled and always empty. Needs a `leaveResidue` action on the data layer and a slot on Haunt Detail. |
+| `SigilDraw.tsx` | Freehand sigil capture, normalized to 0–1 so it replays at any size. | `Haunt.sigilPath` and `Keepsake.sigilPath` are modelled. Intended for the keepsake a visit produces. |
+| `PhysicalNote.tsx` | Paper-styled composer for the arrival note plus a private note for the recipient. | Superseded for now by `ArrivalNoteComposer`, which also records audio. Keep for the passing flow, which has no note styling of its own. |
+| `HauntStepCounter.tsx` | Four-stage progress pip row (`tone → write → place → seal`). | From an earlier multi-step Drop a Haunt. The flow is one page now; restore this if it ever splits again. |
+
+## Before wiring one up
+
+- Confirm the fields it writes exist on the domain model in `src/domain/`.
+- Add the corresponding action to the data layer rather than mutating state in
+  the screen, so the Supabase adapter picks it up for free.
+- `Residue` and `SigilDraw` both produce user content that needs a storage
+  bucket and a row-level security policy; see `docs/supabase.md`.

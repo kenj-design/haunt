@@ -1,0 +1,16 @@
+# Secrets. `.env.example` is the tracked template; nothing else here is.
+.env
+.env.local
+.env.*.local
+
+# Build output and dependencies
+node_modules
+dist
+*.tsbuildinfo
+
+# Local editor and machine noise
+.DS_Store
+.claude/settings.local.json
+
+# Vercel's local link state
+.vercel

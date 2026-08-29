@@ -1,0 +1,103 @@
+/**
+ * The application-state contract, and the hook screens read it through.
+ *
+ * Separate from `AppProvider.tsx` on purpose. React Fast Refresh can only
+ * hot-update a module whose exports are all components, so a file exporting both
+ * the provider and this hook gets invalidated on every edit — forcing a full
+ * remount, during which stale children briefly render against a torn-down
+ * context and throw. Splitting the two keeps edits to either side fast and quiet.
+ */
+
+import { createContext, useContext } from 'react'
+import type {
+  CurrentUser,
+  Friend,
+  Haunt,
+  HauntDraft,
+  Keepsake,
+  Notification,
+} from '../domain'
+
+export type Screen =
+  | { name: 'map' }
+  | { name: 'profile' }
+  | { name: 'haunt'; hauntId: string }
+  | { name: 'lineage'; hauntId: string }
+  | { name: 'pass'; hauntId: string }
+  | { name: 'drop' }
+  | { name: 'notifications' }
+  | { name: 'friend'; handle: string }
+
+export type Tab = 'map' | 'profile'
+
+export interface AppState {
+  // --- data, as of the last snapshot or mutation response ---
+  user: CurrentUser
+  friends: Friend[]
+  haunts: Haunt[]
+  keepsakes: Keepsake[]
+  notifications: Notification[]
+  incomingRequest: string | null
+
+  // --- account ---
+  /**
+   * True while this account exists only on this device.
+   *
+   * The shell blocks on it after onboarding: without a recovery code, losing
+   * the device loses everything. Always false on a backend without accounts.
+   */
+  needsRecoveryCode: boolean
+  /** Mints a recovery code and returns it once. Never callable twice for the same code. */
+  createRecoveryCode: () => Promise<string>
+  /** Marks the code as saved, releasing the shell. */
+  confirmRecoveryCodeSaved: () => void
+
+  // --- session + navigation ---
+  onboarded: boolean
+  screen: Screen
+  tab: Tab
+  /** Haunt to flash on the map right after it is dropped. */
+  focusHauntId: string | null
+  /** Haunt the app thinks you walked past without logging. */
+  missedVisitId: string | null
+  notificationsUnread: boolean
+
+  // --- request state ---
+  /** True while any mutation is in flight. */
+  isBusy: boolean
+  /** The last action failure, in words a person can read. */
+  error: string | null
+  dismissError: () => void
+
+  /*
+   * Actions. Every mutation resolves to whether the change landed, so a screen
+   * that moves on success — `PassHaunt` showing its confirmation, `DropHaunt`
+   * handing its photo URLs over — can wait for the answer instead of assuming
+   * it. Callers with nothing to decide may fire and forget; failures surface
+   * through `error` either way.
+   */
+  completeOnboarding: (handle: string) => Promise<boolean>
+  navigate: (screen: Screen) => void
+  goBack: () => void
+  setTab: (tab: Tab) => void
+  arrive: (hauntId: string) => Promise<boolean>
+  logVisit: (hauntId: string) => Promise<boolean>
+  dropHaunt: (draft: HauntDraft) => Promise<boolean>
+  shareHaunt: (hauntId: string, story: string) => Promise<boolean>
+  passHaunt: (hauntId: string, toHandle: string, note: string) => Promise<boolean>
+  acceptRequest: () => Promise<boolean>
+  ignoreRequest: () => Promise<boolean>
+  markNotificationsRead: () => Promise<boolean>
+  dismissMissedVisit: () => Promise<boolean>
+  confirmMissedVisit: () => Promise<boolean>
+  clearFocusHaunt: () => void
+}
+
+
+export const AppContext = createContext<AppState | null>(null)
+
+export function useApp() {
+  const ctx = useContext(AppContext)
+  if (!ctx) throw new Error('useApp must be used within AppProvider')
+  return ctx
+}

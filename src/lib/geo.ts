@@ -1,0 +1,113 @@
+/**
+ * The one place that knows how Haunt's abstract zone plane meets real geography.
+ *
+ * The prototype stores each zone as an `x`/`y` pair in 0–100 space and fakes
+ * coordinates by projecting that square onto a patch of Dumaguete. Real data
+ * arrives as latitude/longitude, so when the API lands, `zoneToLatLng` and
+ * `latLngToZone` collapse into passthroughs and everything else here still
+ * holds. Nothing outside this module should hardcode a coordinate or tile URL.
+ */
+
+import type { HauntZone } from '../domain'
+
+/** Esri World Imagery. Free for development; check licensing before shipping. */
+export const TILE_URL_TEMPLATE =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+
+export const TILE_ATTRIBUTION = 'Tiles © Esri'
+
+/** The prototype is set in Dumaguete City, Philippines. */
+export const MAP_CENTER: [number, number] = [9.3015, 123.3054]
+export const MAP_DEFAULT_ZOOM = 14
+export const MAP_MIN_ZOOM = 12
+export const MAP_MAX_ZOOM = 19
+
+/** Panning is fenced to the city so the faked projection stays plausible. */
+export const MAP_BOUNDS: [[number, number], [number, number]] = [
+  [9.15, 123.15],
+  [9.45, 123.45],
+]
+
+/** Anchor of the zone plane: where `x: 0, y: 0` lands. */
+const PLANE_ORIGIN_LAT = 9.324
+const PLANE_ORIGIN_LNG = 123.2914
+/** Degrees per unit of zone space — roughly 38 m of latitude, 31 m of longitude. */
+const PLANE_LAT_STEP = 0.00034
+const PLANE_LNG_STEP = 0.00028
+
+/** Zones stay inside these bounds so a marker never lands off the plane. */
+export const ZONE_MIN = 8
+export const ZONE_MAX = 92
+
+type PlanePoint = Pick<HauntZone, 'x' | 'y'>
+
+const clampToPlane = (value: number) => Math.max(ZONE_MIN, Math.min(ZONE_MAX, value))
+
+export function zoneToLatLng(zone: PlanePoint): [number, number] {
+  return [PLANE_ORIGIN_LAT - zone.y * PLANE_LAT_STEP, PLANE_ORIGIN_LNG + zone.x * PLANE_LNG_STEP]
+}
+
+export function latLngToZone(latitude: number, longitude: number): PlanePoint {
+  return {
+    x: Math.round(clampToPlane((longitude - PLANE_ORIGIN_LNG) / PLANE_LNG_STEP)),
+    y: Math.round(clampToPlane((PLANE_ORIGIN_LAT - latitude) / PLANE_LAT_STEP)),
+  }
+}
+
+/**
+ * Where a zone draws on the map.
+ *
+ * Real coordinates win when the backend sent them; otherwise the zone's plane
+ * position is projected onto Dumaguete. Every map surface goes through here, so
+ * both backends render without knowing which one is running.
+ */
+export function hauntLatLng(zone: HauntZone): [number, number] {
+  if (typeof zone.lat === 'number' && typeof zone.lng === 'number') {
+    return [zone.lat, zone.lng]
+  }
+  return zoneToLatLng(zone)
+}
+
+/** Nudges a zone within the plane, for keyboard placement. */
+export function nudgeZone(zone: PlanePoint, deltaX: number, deltaY: number): PlanePoint {
+  return { x: clampToPlane(zone.x + deltaX), y: clampToPlane(zone.y + deltaY) }
+}
+
+/** Earth's circumference at the equator, in metres. */
+const EQUATORIAL_CIRCUMFERENCE_M = 40075016.686
+
+/** Ground resolution of a 256 px web-mercator tile at a given latitude and zoom. */
+export function metresPerPixel(latitudeDegrees: number, zoom: number): number {
+  const radians = (latitudeDegrees * Math.PI) / 180
+  return (EQUATORIAL_CIRCUMFERENCE_M * Math.cos(radians)) / Math.pow(2, zoom + 8)
+}
+
+/** Renders a zone's diameter in screen pixels, clamped to stay legible. */
+export function zoneDiameterPx(
+  radiusM: number,
+  latitudeDegrees: number,
+  zoom: number,
+  { min, max }: { min: number; max: number },
+): number {
+  const diameter = (radiusM * 2) / metresPerPixel(latitudeDegrees, zoom)
+  return Math.max(min, Math.min(max, diameter))
+}
+
+/** Fixed zoom level of the still tile used as stand-in artwork. */
+const PREVIEW_TILE_ZOOM = 15
+const PREVIEW_TILE_ORIGIN_X = 27604
+const PREVIEW_TILE_ORIGIN_Y = 15527
+const PREVIEW_TILE_SPAN_X = 7
+const PREVIEW_TILE_SPAN_Y = 10
+
+/**
+ * A single satellite tile near the zone, used as placeholder artwork for haunts
+ * with no photo. Replace with a real thumbnail once media lives in storage.
+ */
+export function zonePreviewTileUrl(zone: PlanePoint): string {
+  const tileX = PREVIEW_TILE_ORIGIN_X + Math.round((zone.x / 100) * PREVIEW_TILE_SPAN_X)
+  const tileY = PREVIEW_TILE_ORIGIN_Y + Math.round((zone.y / 100) * PREVIEW_TILE_SPAN_Y)
+  return TILE_URL_TEMPLATE.replace('{z}', String(PREVIEW_TILE_ZOOM))
+    .replace('{y}', String(tileY))
+    .replace('{x}', String(tileX))
+}
