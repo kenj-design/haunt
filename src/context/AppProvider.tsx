@@ -271,28 +271,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // --- people ---------------------------------------------------------------
 
-  const acceptRequest = useCallback(async () => {
-    const handle = snapshot?.incomingRequest
-    if (!handle) return false
-    return mutate(
-      () => source().acceptFriendRequest(handle),
-      (friend, current) => ({
-        friends: [...current.friends, friend],
-        incomingRequest: null,
-      }),
-      "couldn't accept that request",
-    )
-  }, [mutate, source, snapshot?.incomingRequest])
+  const sendFriendRequest = useCallback(
+    (handle: string) =>
+      mutate(
+        () => source().sendFriendRequest(handle),
+        ({ requests, friend }, current) => ({
+          friendRequests: requests,
+          // Non-null when the ask answered a request already waiting from them.
+          friends:
+            friend && !current.friends.some((existing) => existing.handle === friend.handle)
+              ? [...current.friends, friend]
+              : current.friends,
+        }),
+        "couldn't ask to know them",
+      ),
+    [mutate, source],
+  )
 
-  const ignoreRequest = useCallback(async () => {
-    const handle = snapshot?.incomingRequest
-    if (!handle) return false
-    return mutate(
-      () => source().ignoreFriendRequest(handle),
-      () => ({ incomingRequest: null }),
-      "couldn't dismiss that request",
-    )
-  }, [mutate, source, snapshot?.incomingRequest])
+  const acceptRequest = useCallback(
+    (handle: string) =>
+      mutate(
+        () => source().acceptFriendRequest(handle),
+        (friend, current) => ({
+          friends: [...current.friends, friend],
+          friendRequests: current.friendRequests.filter((r) => r.handle !== handle),
+        }),
+        "couldn't accept that request",
+      ),
+    [mutate, source],
+  )
+
+  const ignoreRequest = useCallback(
+    (handle: string) =>
+      mutate(
+        () => source().ignoreFriendRequest(handle),
+        (_result, current) => ({
+          friendRequests: current.friendRequests.filter((r) => r.handle !== handle),
+        }),
+        "couldn't dismiss that request",
+      ),
+    [mutate, source],
+  )
 
   // --- prompts --------------------------------------------------------------
 
@@ -337,7 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       haunts: snapshot.haunts,
       keepsakes: snapshot.keepsakes,
       notifications: snapshot.notifications,
-      incomingRequest: snapshot.incomingRequest,
+      friendRequests: snapshot.friendRequests,
       onboarded: previewOnboarding ? false : snapshot.onboarded,
       screen: stack[stack.length - 1],
       tab,
@@ -360,6 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dropHaunt,
       shareHaunt,
       passHaunt,
+      sendFriendRequest,
       acceptRequest,
       ignoreRequest,
       markNotificationsRead,
@@ -389,6 +409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dropHaunt,
     shareHaunt,
     passHaunt,
+    sendFriendRequest,
     acceptRequest,
     ignoreRequest,
     markNotificationsRead,

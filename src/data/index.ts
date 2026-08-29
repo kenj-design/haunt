@@ -14,6 +14,7 @@ export type {
   AppSnapshot,
   DataErrorCode,
   DropResult,
+  FriendRequestResult,
   HauntDataSource,
   PassResult,
   VisitResult,

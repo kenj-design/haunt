@@ -22,6 +22,7 @@ export { isGroupFounded, isHauntActive, newHauntFromDraft } from './haunt'
 export type {
   CurrentUser,
   Friend,
+  FriendRequest,
   Keepsake,
   Notification,
   NotificationKind,

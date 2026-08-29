@@ -29,11 +29,12 @@ import { DataError } from '../dataSource'
 import type {
   AppSnapshot,
   DropResult,
+  FriendRequestResult,
   HauntDataSource,
   PassResult,
   VisitResult,
 } from '../dataSource'
-import type { CurrentUser, Friend, Haunt, HauntDraft, Keepsake } from '../../domain'
+import type { CurrentUser, Friend, FriendRequest, Haunt, HauntDraft, Keepsake } from '../../domain'
 import { getSupabaseClient, MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS } from './client'
 import {
   toCurrentUser,
@@ -209,21 +210,13 @@ export function createSupabaseDataSource(
     return rows.map(toFriend)
   }
 
-  /** The oldest unanswered request. The prototype surfaces one at a time. */
-  async function readIncomingRequest(userId: string): Promise<string | null> {
+  /** Everything outstanding, both directions. */
+  async function readFriendRequests(): Promise<FriendRequest[]> {
     const rows = unwrap<FriendRequestRow[]>(
-      await supabase
-        .from('friendships')
-        .select('id, requester:profiles!requester_id(handle)')
-        .eq('addressee_id', userId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .returns<FriendRequestRow[]>(),
+      await supabase.rpc('friend_requests'),
       "couldn't read your requests",
     )
-    const handle = rows[0]?.requester?.handle
-    return handle ? `@${handle}` : null
+    return rows.map((row) => ({ handle: row.handle, direction: row.direction }))
   }
 
   return {
@@ -231,7 +224,7 @@ export function createSupabaseDataSource(
       const userId = await requireUserId()
 
       // Independent reads, so they go out together rather than in a queue.
-      const [user, friends, haunts, keepsakes, notificationRows, incomingRequest, missed] =
+      const [user, friends, haunts, keepsakes, notificationRows, friendRequests, missed] =
         await Promise.all([
           readUser(),
           readFriends(),
@@ -244,7 +237,7 @@ export function createSupabaseDataSource(
             .order('created_at', { ascending: false })
             .limit(50)
             .returns<NotificationRow[]>(),
-          readIncomingRequest(userId),
+          readFriendRequests(),
           supabase.rpc('missed_visit_id'),
         ])
 
@@ -261,7 +254,7 @@ export function createSupabaseDataSource(
         haunts,
         keepsakes,
         notifications: rows.map(toNotification),
-        incomingRequest,
+        friendRequests,
         missedVisitId: (missed.data as string | null) ?? null,
         onboarded: Boolean(profile?.onboarded),
         notificationsUnread: rows.some((row) => row.read_at === null),
@@ -347,16 +340,38 @@ export function createSupabaseDataSource(
       return { haunt, user }
     },
 
+    async sendFriendRequest(handle: string): Promise<FriendRequestResult> {
+      const { error } = await supabase.rpc('send_friend_request', { p_handle: handle })
+      if (error) throw toDataErrorFrom(error, "couldn't ask to know them")
+
+      // The backend decides what the ask meant — a new request, or an answer to
+      // one already waiting — so both lists are re-read rather than guessed at.
+      const [requests, friends] = await Promise.all([readFriendRequests(), readFriends()])
+      const normalized = handle.startsWith('@') ? handle : `@${handle}`
+      return {
+        requests,
+        friend: friends.find((candidate) => candidate.handle === normalized) ?? null,
+      }
+    },
+
     async acceptFriendRequest(handle: string): Promise<Friend> {
-      await respondToRequest(supabase, await requireUserId(), handle, 'accepted')
-      const friends = await readFriends()
-      const friend = friends.find((candidate) => candidate.handle === handle)
-      if (!friend) throw new DataError('not-found', `no pending request from ${handle}`)
+      const { error } = await supabase.rpc('respond_to_friend_request', {
+        p_handle: handle,
+        p_accept: true,
+      })
+      if (error) throw toDataErrorFrom(error, "couldn't accept that request")
+
+      const friend = (await readFriends()).find((candidate) => candidate.handle === handle)
+      if (!friend) throw new DataError('not-found', `no request from ${handle}`)
       return friend
     },
 
     async ignoreFriendRequest(handle: string): Promise<void> {
-      await respondToRequest(supabase, await requireUserId(), handle, 'ignored')
+      const { error } = await supabase.rpc('respond_to_friend_request', {
+        p_handle: handle,
+        p_accept: false,
+      })
+      if (error) throw toDataErrorFrom(error, "couldn't dismiss that request")
     },
 
     async markNotificationsRead(): Promise<void> {
@@ -410,31 +425,4 @@ async function uploadPhotos(
   }
 
   return paths
-}
-
-/** Accepts or ignores the pending request from `handle`. */
-async function respondToRequest(
-  supabase: SupabaseClient,
-  userId: string,
-  handle: string,
-  status: 'accepted' | 'ignored',
-): Promise<void> {
-  const bareHandle = handle.replace(/^@/, '').toLowerCase()
-
-  const { data: requester, error: lookupError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('handle', bareHandle)
-    .single()
-  if (lookupError || !requester) {
-    throw new DataError('not-found', `no pending request from ${handle}`)
-  }
-
-  const { error } = await supabase
-    .from('friendships')
-    .update({ status, responded_at: new Date().toISOString() })
-    .eq('requester_id', requester.id)
-    .eq('addressee_id', userId)
-    .eq('status', 'pending')
-  if (error) throw toDataErrorFrom(error, "couldn't answer that request")
 }

@@ -36,6 +36,17 @@ export interface Keepsake {
   sigilPath?: import('./haunt').NormalizedPoint[]
 }
 
+/**
+ * An outstanding request to know someone.
+ *
+ * Outgoing ones are shown too, so an ask doesn't disappear into silence while
+ * you wait. Ignoring is quiet — the other person is never told.
+ */
+export interface FriendRequest {
+  handle: string
+  direction: 'incoming' | 'outgoing'
+}
+
 /** `anon` hides who acted, which is the point — it reports the event, not the person. */
 export type NotificationKind = 'visit' | 'pass' | 'anon'
 

@@ -13,11 +13,11 @@
 
 import { config } from '../config'
 import { newHauntFromDraft } from '../domain'
-import type { CurrentUser, Friend, Haunt, Keepsake, LineageEntry } from '../domain'
+import type { CurrentUser, Friend, FriendRequest, Haunt, Keepsake, LineageEntry } from '../domain'
 import {
   seedFriends,
   seedHaunts,
-  seedIncomingRequest,
+  seedFriendRequests,
   seedKeepsakes,
   seedMissedVisitId,
   seedNotifications,
@@ -27,6 +27,7 @@ import { DataError } from './dataSource'
 import type {
   AppSnapshot,
   DropResult,
+  FriendRequestResult,
   HauntDataSource,
   PassResult,
   VisitResult,
@@ -57,7 +58,7 @@ function seedStore(): Store {
     haunts: seedHaunts,
     keepsakes: seedKeepsakes,
     notifications: seedNotifications,
-    incomingRequest: seedIncomingRequest,
+    friendRequests: seedFriendRequests,
     missedVisitId: seedMissedVisitId,
     onboarded: false,
     notificationsUnread: true,
@@ -300,14 +301,60 @@ export function createMockDataSource(options: MockDataSourceOptions = {}): Haunt
       })
     },
 
+    /*
+     * The mock has no directory of people, so unlike the real backend it cannot
+     * tell you that a handle does not exist — any well-formed one becomes an
+     * outgoing request that nobody is there to answer. Asking someone who has
+     * already asked you still accepts, which is the rule that matters.
+     */
+    sendFriendRequest(handle) {
+      return call<FriendRequestResult>(() => {
+        const normalized = handle.startsWith('@') ? handle : `@${handle}`
+
+        if (normalized === store.user.handle) {
+          throw new DataError('conflict', 'that one is you')
+        }
+        if (store.friends.some((friend) => friend.handle === normalized)) {
+          throw new DataError('conflict', 'you already know each other')
+        }
+
+        const existing = store.friendRequests.find((request) => request.handle === normalized)
+        if (existing?.direction === 'outgoing') {
+          throw new DataError('conflict', 'you have already asked them')
+        }
+        if (existing?.direction === 'incoming') {
+          // They asked first; asking back is an answer.
+          const friend: Friend = { handle: normalized, vibes: NEW_FRIEND_VIBES, mutualCount: 1 }
+          const requests = store.friendRequests.filter((r) => r.handle !== normalized)
+          return commit(
+            { ...store, friends: [...store.friends, friend], friendRequests: requests },
+            { requests, friend },
+          )
+        }
+
+        const requests: FriendRequest[] = [
+          ...store.friendRequests,
+          { handle: normalized, direction: 'outgoing' },
+        ]
+        return commit({ ...store, friendRequests: requests }, { requests, friend: null })
+      })
+    },
+
     acceptFriendRequest(handle) {
       return call(() => {
-        if (store.incomingRequest !== handle) {
-          throw new DataError('not-found', `no pending request from ${handle}`)
+        const pending = store.friendRequests.find(
+          (request) => request.handle === handle && request.direction === 'incoming',
+        )
+        if (!pending) {
+          throw new DataError('not-found', `no request from ${handle}`)
         }
         const friend: Friend = { handle, vibes: NEW_FRIEND_VIBES, mutualCount: 1 }
         return commit(
-          { ...store, friends: [...store.friends, friend], incomingRequest: null },
+          {
+            ...store,
+            friends: [...store.friends, friend],
+            friendRequests: store.friendRequests.filter((r) => r.handle !== handle),
+          },
           friend,
         )
       })
@@ -315,9 +362,10 @@ export function createMockDataSource(options: MockDataSourceOptions = {}): Haunt
 
     ignoreFriendRequest(handle) {
       return call(() => {
-        if (store.incomingRequest === handle) {
-          commit({ ...store, incomingRequest: null }, null)
-        }
+        commit(
+          { ...store, friendRequests: store.friendRequests.filter((r) => r.handle !== handle) },
+          null,
+        )
       })
     },
 

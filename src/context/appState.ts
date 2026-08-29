@@ -12,6 +12,7 @@ import { createContext, useContext } from 'react'
 import type {
   CurrentUser,
   Friend,
+  FriendRequest,
   Haunt,
   HauntDraft,
   Keepsake,
@@ -38,7 +39,7 @@ export interface AppState {
   haunts: Haunt[]
   keepsakes: Keepsake[]
   notifications: Notification[]
-  incomingRequest: string | null
+  friendRequests: FriendRequest[]
 
   // --- account ---
   /**
@@ -88,8 +89,9 @@ export interface AppState {
   dropHaunt: (draft: HauntDraft) => Promise<boolean>
   shareHaunt: (hauntId: string, story: string) => Promise<boolean>
   passHaunt: (hauntId: string, toHandle: string, note: string) => Promise<boolean>
-  acceptRequest: () => Promise<boolean>
-  ignoreRequest: () => Promise<boolean>
+  sendFriendRequest: (handle: string) => Promise<boolean>
+  acceptRequest: (handle: string) => Promise<boolean>
+  ignoreRequest: (handle: string) => Promise<boolean>
   markNotificationsRead: () => Promise<boolean>
   dismissMissedVisit: () => Promise<boolean>
   confirmMissedVisit: () => Promise<boolean>

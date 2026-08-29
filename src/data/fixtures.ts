@@ -10,7 +10,14 @@
  * against the viewer, and every `time` string is pre-formatted for display.
  */
 
-import type { CurrentUser, Friend, Haunt, Keepsake, Notification } from '../domain'
+import type {
+  CurrentUser,
+  Friend,
+  FriendRequest,
+  Haunt,
+  Keepsake,
+  Notification,
+} from '../domain'
 
 export const seedUser: CurrentUser = {
   handle: '@you',
@@ -280,8 +287,11 @@ export const seedNotifications: Notification[] = [
   },
 ]
 
-/** The pending friend request the prototype opens with. */
-export const seedIncomingRequest = '@ada.grey'
+/** The requests the prototype opens with: one waiting on you, one on them. */
+export const seedFriendRequests: FriendRequest[] = [
+  { handle: '@ada.grey', direction: 'incoming' },
+  { handle: '@theo.vance', direction: 'outgoing' },
+]
 
 /** The haunt the prototype pretends you walked past without logging. */
 export const seedMissedVisitId = 'riverbend'

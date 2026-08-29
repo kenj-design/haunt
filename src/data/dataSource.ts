@@ -14,7 +14,15 @@
  *    fields — counters, lineage, health — always come from the server.
  */
 
-import type { CurrentUser, Friend, Haunt, HauntDraft, Keepsake, Notification } from '../domain'
+import type {
+  CurrentUser,
+  Friend,
+  FriendRequest,
+  Haunt,
+  HauntDraft,
+  Keepsake,
+  Notification,
+} from '../domain'
 
 /**
  * Everything the app needs to render, in one round trip.
@@ -30,8 +38,8 @@ export interface AppSnapshot {
   haunts: Haunt[]
   keepsakes: Keepsake[]
   notifications: Notification[]
-  /** Pending friend request, or `null`. One at a time in the prototype. */
-  incomingRequest: string | null
+  /** Everything outstanding, both directions. */
+  friendRequests: FriendRequest[]
   /** A haunt the viewer passed through without logging, if the geofence saw one. */
   missedVisitId: string | null
   /** Whether this person has claimed a handle yet. */
@@ -55,6 +63,19 @@ export interface DropResult {
 export interface PassResult {
   haunt: Haunt
   user: CurrentUser
+}
+
+/**
+ * The outcome of asking to know someone.
+ *
+ * `friend` is non-null when the ask answered a request that was already waiting
+ * from them — reaching for each other connects you rather than queueing a second
+ * request nobody needs to answer.
+ */
+export interface FriendRequestResult {
+  /** The full outstanding set afterwards, both directions. */
+  requests: FriendRequest[]
+  friend: Friend | null
 }
 
 export type DataErrorCode = 'not-found' | 'not-permitted' | 'conflict' | 'network' | 'unknown'
@@ -118,6 +139,16 @@ export interface HauntDataSource {
   /** Hands a haunt to one person, with the note that has to come with it. */
   passHaunt(hauntId: string, toHandle: string, note: string): Promise<PassResult>
 
+  /**
+   * Asks to know someone by their exact handle.
+   *
+   * Narrow on purpose: there is no directory and no search. Asking someone who
+   * already asked you accepts instead, so two people reaching for each other
+   * don't end up waiting on each other.
+   */
+  sendFriendRequest(handle: string): Promise<FriendRequestResult>
+
+  /** Answers a request made to you. Returns the new friend when accepted. */
   acceptFriendRequest(handle: string): Promise<Friend>
   ignoreFriendRequest(handle: string): Promise<void>
 

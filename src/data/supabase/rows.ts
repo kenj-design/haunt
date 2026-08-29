@@ -118,7 +118,8 @@ export interface KeepsakeRow {
   } | null
 }
 
+/** One row of `friend_requests()`. */
 export interface FriendRequestRow {
-  id: string
-  requester: { handle: string } | null
+  handle: string
+  direction: 'incoming' | 'outgoing'
 }
