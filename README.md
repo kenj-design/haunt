@@ -9,6 +9,9 @@ a feed.
 **Live: [haunt-alpha.vercel.app](https://haunt-alpha.vercel.app)** — running on
 Supabase, deployed from `main`.
 
+New here? [docs/handoff.md](docs/handoff.md) is the fastest way in: the rules
+that must not regress, the traps already paid for, and a ranked backlog.
+
 Every screen and flow is real. It runs on either of two backends behind one
 interface: an in-memory mock seeded from fixtures, or Postgres with PostGIS and
 row-level security. Which one is a single environment variable.
@@ -53,6 +56,7 @@ src/
 supabase/
   migrations/  schema, row-level security, and the read and write functions
 docs/
+  handoff.md        start here if you're new to this codebase
   architecture.md   how the layers fit together and why
   supabase.md       standing up the real backend, and what is still unverified
   deploy.md         Supabase + GitHub + Vercel, start to finish
