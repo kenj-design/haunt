@@ -34,7 +34,7 @@ import type {
   PassResult,
   VisitResult,
 } from '../dataSource'
-import type { CurrentUser, Friend, FriendRequest, Haunt, HauntDraft, Keepsake } from '../../domain'
+import type { CurrentUser, Friend, FriendRequest, Haunt, HauntDraft } from '../../domain'
 import { getSupabaseClient, MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS } from './client'
 import {
   toCurrentUser,
@@ -240,20 +240,24 @@ export function createSupabaseDataSource(
     )
   }
 
-  async function readKeepsakes(userId: string): Promise<Keepsake[]> {
-    const rows = unwrap<KeepsakeRow[]>(
+  /**
+   * The keepsake rows alone — no haunt embedded.
+   *
+   * Embedding one would need select on `haunts`, which clients no longer have:
+   * that table holds the exact point and the sealed note, and row-level security
+   * cannot withhold a column. The names get attached from the feed instead, which
+   * has already redacted itself for this viewer.
+   */
+  async function readKeepsakeRows(userId: string): Promise<KeepsakeRow[]> {
+    return unwrap<KeepsakeRow[]>(
       await supabase
         .from('keepsakes')
-        .select(
-          'id, haunt_id, collected_at, sigil_path, ' +
-            'haunt:haunts(name, photo_gradient, finder:profiles!finder_id(handle))',
-        )
+        .select('id, haunt_id, collected_at, sigil_path')
         .eq('owner_id', userId)
         .order('collected_at', { ascending: false })
         .returns<KeepsakeRow[]>(),
       "couldn't read your keepsakes",
     )
-    return rows.map(toKeepsake)
   }
 
   async function readFriends(): Promise<Friend[]> {
@@ -286,12 +290,12 @@ export function createSupabaseDataSource(
       }
 
       // Independent reads, so they go out together rather than in a queue.
-      const [user, friends, haunts, keepsakes, notificationRows, friendRequests, missed] =
+      const [user, friends, haunts, keepsakeRows, notificationRows, friendRequests, missed] =
         await Promise.all([
           readUser(),
           readFriends(),
           readHaunts(),
-          readKeepsakes(userId),
+          readKeepsakeRows(userId),
           supabase
             .from('notifications')
             .select('id, kind, haunt_id, body, created_at, read_at, actor:profiles!actor_id(handle)')
@@ -304,6 +308,10 @@ export function createSupabaseDataSource(
         ])
 
       const rows = unwrap<NotificationRow[]>(notificationRows, "couldn't read your news")
+      // The feed has already decided what this viewer may know about each place,
+      // so the keepsakes take their names from it rather than asking again.
+      const byId = new Map(haunts.map((haunt) => [haunt.id, haunt]))
+      const keepsakes = keepsakeRows.map((row) => toKeepsake(row, byId.get(row.haunt_id)))
       const { data: profile } = await supabase
         .from('profiles')
         .select('onboarded')
@@ -361,14 +369,15 @@ export function createSupabaseDataSource(
       const { error } = await supabase.rpc('log_visit', { p_haunt: hauntId })
       if (error) throw toDataErrorFrom(error, "couldn't log that visit")
 
-      const [haunt, user, keepsakes] = await Promise.all([
+      const [haunt, user, keepsakeRows] = await Promise.all([
         readHaunt(hauntId),
         readUser(),
-        readKeepsakes(userId),
+        readKeepsakeRows(userId),
       ])
       // `log_visit` mints a keepsake only on a first visit, so a returning
       // visitor legitimately gets none back here.
-      const keepsake = keepsakes.find((item) => item.hauntId === hauntId) ?? null
+      const row = keepsakeRows.find((item) => item.haunt_id === hauntId)
+      const keepsake = row ? toKeepsake(row, haunt) : null
       return { haunt, keepsake, user }
     },
 
@@ -400,11 +409,12 @@ export function createSupabaseDataSource(
     },
 
     async shareHaunt(hauntId: string, story: string): Promise<Haunt> {
-      // A plain update: RLS already limits this to the finder, so it needs no RPC.
-      const { error } = await supabase
-        .from('haunts')
-        .update({ audience: 'circle', story: story.trim() })
-        .eq('id', hauntId)
+      // An RPC rather than an update, because the client has no write access to
+      // `haunts` — and it had none to spare: granting it meant granting reads.
+      const { error } = await supabase.rpc('share_haunt', {
+        p_haunt: hauntId,
+        p_story: story.trim(),
+      })
       if (error) throw toDataErrorFrom(error, "couldn't share that haunt")
       return readHaunt(hauntId)
     },

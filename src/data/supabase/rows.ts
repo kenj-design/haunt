@@ -111,11 +111,6 @@ export interface KeepsakeRow {
   haunt_id: string
   collected_at: string
   sigil_path: PointRow[] | null
-  haunt: {
-    name: string
-    photo_gradient: string
-    finder: { handle: string } | null
-  } | null
 }
 
 /** One row of `friend_requests()`. */

@@ -99,10 +99,12 @@ function ShareHauntPanel({ haunt }: { haunt: Haunt }) {
         </span>
         <span className="notes-share-copy">
           <span id="share-haunt-heading" className="notes-share-title">
-            share this haunt with friends
+            add a few words for friends
           </span>
           <span className="notes-share-subtext">
-            {open ? 'add a message for a friend before they go' : 'optional · choose if friends hear from you'}
+            {open
+              ? 'they read this when the haunt reaches them'
+              : 'optional · what would you tell someone before they go?'}
           </span>
         </span>
         <ChevronDown
@@ -132,7 +134,7 @@ function ShareHauntPanel({ haunt }: { haunt: Haunt }) {
             className="notes-post-share-action pressable"
             onClick={() => void shareHaunt(haunt.id, story)}
           >
-            <span>{isBusy ? 'sharing…' : 'share with friends'}</span>
+            <span>{isBusy ? 'saving…' : 'save it'}</span>
             <ArrowRight size={15} strokeWidth={1.7} aria-hidden="true" />
           </button>
         </div>
@@ -260,7 +262,7 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
       ? { icon: Lock, label: 'only you', note: 'this haunt is kept close' }
       : haunt.audience === 'wanderers'
         ? { icon: Footprints, label: 'wanderers', note: 'anyone nearby may encounter it' }
-        : { icon: Users, label: 'your circle', note: 'people you trust may encounter it' }
+        : { icon: Users, label: 'your circle', note: 'friends see its name, everyone else sees fog' }
   const AudienceIcon = audience.icon
   // Belt and braces: a shrouded haunt's photos never arrive, and are not shown
   // even if some other backend hands them over.
@@ -371,7 +373,9 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
                   )}
                 </div>
               )}
-              {isOwn && haunt.status === 'visited' && haunt.audience === 'self' && (
+              {/* Until there are words for it. A haunt is shared from the moment
+                  it lands now, so this panel is about the story, not the audience. */}
+              {isOwn && haunt.status === 'visited' && !haunt.story && (
                 <ShareHauntPanel haunt={haunt} />
               )}
               {haunt.lifespan !== 'lasting' && (() => {

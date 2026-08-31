@@ -81,6 +81,9 @@ supabase/migrations/
   0004_writes.sql      the compound mutations, as RPCs
   0005_friend_requests.sql  asking to know someone, by exact handle
   0006_arrival.sql     arrival checked against a real position
+  0007_alpha_visibility.sql  every shared haunt on every map, as fog — and the
+                             client's table access revoked, because that widening
+                             would otherwise have handed out coordinates
 ```
 
 `mockDataSource.ts` is the specification. When a rule is ambiguous — what a visit
@@ -112,12 +115,20 @@ Three concentric rings:
 | --- | --- |
 | Your own | Everything, including the private health numbers |
 | Your circle | Accepted friends see haunts shared to `circle`, in full |
-| One hop out | Friends of friends learn a zone exists, and nothing else |
+| Everyone else | That a zone exists, and nothing else |
+
+The outer ring used to stop at friends-of-friends. It is now everyone, because an
+alpha with a handful of users had an empty map — see `0007_alpha_visibility.sql`.
+A haunt still marked `self` is outside all of this and stays invisible.
 
 Row-level security decides which **rows** are reachable. It cannot redact
-**columns**, which is what the third ring needs — so `haunt_feed` does that part,
-and clients read through the function rather than the table. The two work
-together and neither is sufficient alone:
+**columns**, which is what the outer ring needs — so `haunt_feed` does that part,
+and clients read through the function rather than the table. That last clause is
+now enforced rather than merely intended: `0007` revokes every client grant on
+`haunts`, `haunt_founders`, `haunt_health`, `visits`, `passes` and `residues`, so
+`select zone, arrival_note from haunts` is not a thing a client can do. Before
+that it was, for any row the predicate allowed. The two work together and neither
+is sufficient alone:
 
 - `can_see_haunt(haunt, viewer)` — the RLS predicate on `haunts`.
 - `haunt_is_shrouded(haunt, viewer)` — whether the columns come back redacted.

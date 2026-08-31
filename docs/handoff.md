@@ -25,9 +25,14 @@ It is **live and working**, not a prototype pretending to be one.
 Everything else is a feature. These are the product:
 
 1. **A haunt's exact point never reaches a client.** `haunt_feed` returns a
-   radius, a distance, and a centre snapped to a grid the size of the radius.
-2. **Friend-of-a-friend sees `???` and nothing else** — no name, no finder, no
-   story, no note. Not hidden by the UI; absent from the response.
+   radius, a distance, and a centre snapped to a grid the size of the radius —
+   and since `0007`, clients hold no grant on the `haunts` table at all, so
+   reading the true column is not merely discouraged but impossible. Restoring
+   that grant would undo this rule on its own, quietly.
+2. **Anyone who is not a friend sees `???` and nothing else** — no name, no
+   finder, no story, no note. Not hidden by the UI; absent from the response.
+   Every shared haunt is on every map now, so this rule carries far more weight
+   than it did when the outer ring stopped at friends-of-friends.
 3. **The arrival note is sealed until you have arrived.** `haunt_feed` returns
    an empty note until `visits.arrived_at` is set.
 4. **Arrival is geofenced.** `arrive_at_haunt` requires a position and refuses

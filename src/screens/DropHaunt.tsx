@@ -14,8 +14,10 @@
  * them transfers at exactly one moment; `drop()` explains the handoff and why it
  * has to happen before the await rather than after.
  *
- * A new haunt starts private. Sharing it is a separate, deliberate choice made
- * on Haunt Detail afterwards.
+ * A new haunt is shared with the finder's circle the moment it lands. Everyone
+ * outside that circle sees a fogged zone and `???` — nothing else reaches them —
+ * so the map fills up without anything leaking. The few words a finder writes
+ * for friends are still added afterwards, on Haunt Detail.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import {
@@ -170,8 +172,10 @@ export default function DropHaunt() {
       arrivalNoteAudioDuration: hasAudioNote ? arrivalNoteAudioDuration : undefined,
       zone: { ...zonePoint, radiusM: radius },
       lifespan: 'lasting',
-      // A new haunt starts private; Haunt Detail offers to share it afterwards.
-      audience: 'self',
+      // Shared on arrival rather than kept private: a haunt nobody can see does
+      // nothing, and an alpha with an empty map reads as broken rather than
+      // quiet. Everyone outside the circle still only sees fog.
+      audience: 'circle',
       photoGradient: GRADIENT_SWATCHES[0],
       photoUrls,
       foundedWith: whosHere,
@@ -494,7 +498,8 @@ function Aftermath({
       </h1>
       <p className="mt-3 text-[13px] leading-relaxed text-ink-2">
         <span className="text-ink">{haunt.name}</span> is resting where you stood.
-        Friends see a {haunt.zone.radiusM}m zone, never the exact spot.
+        Friends see its name inside a {haunt.zone.radiusM}m zone; everyone else
+        just sees the fog.
       </p>
       {haunt.arrivalNoteKind && (
         <p className="mt-2 text-[12px] leading-relaxed text-ink-3">

@@ -137,14 +137,22 @@ export function toNotification(row: NotificationRow): Notification {
   }
 }
 
-export function toKeepsake(row: KeepsakeRow): Keepsake {
+/**
+ * A keepsake, dressed with the haunt it came from.
+ *
+ * The haunt is passed in from the feed rather than embedded in the query,
+ * because clients have no read access to the `haunts` table at all — see
+ * `0007_alpha_visibility.sql`. A keepsake whose haunt is no longer visible keeps
+ * its date and shows `???`, which is the truth: you went, and it has gone.
+ */
+export function toKeepsake(row: KeepsakeRow, haunt?: Haunt): Keepsake {
   return {
     id: row.id,
     hauntId: row.haunt_id,
-    name: row.haunt?.name ?? '???',
-    finderHandle: row.haunt?.finder ? `@${row.haunt.finder.handle}` : '???',
+    name: haunt?.name ?? '???',
+    finderHandle: haunt?.finderHandle ?? '???',
     collectedAt: monthYear(row.collected_at),
-    photoGradient: row.haunt?.photo_gradient ?? '',
+    photoGradient: haunt?.photoGradient ?? '',
     sigilPath: row.sigil_path ?? undefined,
   }
 }
