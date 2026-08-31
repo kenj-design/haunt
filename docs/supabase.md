@@ -107,6 +107,27 @@ and it is enforced in the database rather than trusted to the UI.
 live in `visits` and `passes` and are computed per request. The domain model
 marks each one with a `viewer-resolved` comment for exactly this reason.
 
+## Sessions, and what actually ends one
+
+Set under **Authentication → Sessions**, and worth knowing because the account has
+no other way back in:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Access token expiry | **86400** (24h) | Was the 3600 default. A longer token means the app opens from cache on bad signal instead of blocking on a refresh — which matters for something used while walking around. The cost is revocation latency: an access token is checked by signature alone, so a stolen one works until it expires. The dashboard allows up to 604800 (a week); a day is the compromise. |
+| Time-box user sessions | 0 (off) | No forced end. |
+| Inactivity timeout | 0 (off) | No idle end. |
+| Refresh token reuse interval | 10s | Default. |
+
+So nothing on the server ever ends a session. What ends one is the browser losing
+the single `localStorage` key the refresh token lives in — and on iOS Safari that
+happens after **seven days without a visit**, unless the app has been added to the
+Home Screen, which moves it to storage the seven-day cap does not touch. `main.tsx`
+asks for persistent storage on boot for the same reason.
+
+None of this is recoverable server-side: the recovery code is derived from itself
+and stored nowhere, so eviction without a saved code is account loss.
+
 ## Visibility, and where it is enforced
 
 Three concentric rings:
