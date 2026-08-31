@@ -246,6 +246,17 @@ No dividing line between the two halves. No logos, no buttons, no UI, no other
 text. Spell every word exactly as written.
 ```
 
+## What is in `public/art` right now
+
+Placeholders, cut from the fourth contact sheet with `sips`: each cell tight-cropped
+to its paper, the printed number sliced off the top, saved as JPEG. They are about
+**240px** and soft on a retina screen — enough to judge the design, not enough to
+ship. Full-resolution files drop in under the same names; the only change needed is
+the extension in [`src/lib/art.ts`](../src/lib/art.ts), which is the one place a
+filename appears.
+
+`sips` on this machine cannot write WebP, which is why the stopgap set is JPEG.
+
 ## Output spec
 
 - **Square 1:1** for everything except the share card.

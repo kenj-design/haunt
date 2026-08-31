@@ -11,6 +11,7 @@
 import { MapPin, Users } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { Avatar, hauntArtworkStyle, ScreenHeader } from '../components/ui'
+import StampPage from '../components/StampPage'
 import { isGroupFounded } from '../domain'
 
 export default function Lineage({ hauntId }: { hauntId: string }) {
@@ -103,9 +104,12 @@ export default function Lineage({ hauntId }: { hauntId: string }) {
             </div>
           ))}
           {chain.length === 0 && founding.length === 0 && (
-            <p className="py-8 text-center text-[13px] text-ink-3">
-              this chain hasn't started yet
-            </p>
+            <div className="flex flex-col items-center py-8">
+              <StampPage slot="chainEmpty" className="w-[128px]" />
+              <p className="mt-4 text-center text-[13px] text-ink-3">
+                this chain hasn't started yet
+              </p>
+            </div>
           )}
         </div>
 

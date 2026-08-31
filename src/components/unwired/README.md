@@ -15,6 +15,7 @@ row from this table.
 | `Residue.tsx` | Leaving and displaying visitor traces — a coloured mark placed in the haunt's field. | `Haunt.residues` is modelled and always empty. Needs a `leaveResidue` action on the data layer and a slot on Haunt Detail. |
 | `SigilDraw.tsx` | Freehand sigil capture, normalized to 0–1 so it replays at any size. | `Haunt.sigilPath` and `Keepsake.sigilPath` are modelled. Intended for the keepsake a visit produces. |
 | `PhysicalNote.tsx` | Paper-styled composer for the arrival note plus a private note for the recipient. | Superseded for now by `ArrivalNoteComposer`, which also records audio. Keep for the passing flow, which has no note styling of its own. |
+| `FieldNote.tsx` | Draws a haunt as a stamped field-note page: hand-carved motif in 2-3 spot inks, noise-displaced edges, dry-ink mask, ink grain, per-colour misregistration, with a typewriter caption. Motif and jitter come from the haunt's seed, so a place is always stamped the same way. | The fixed screens use generated art from `public/art/` instead (see [docs/illustrations.md](../../../docs/illustrations.md)). This one exists for **keepsakes**, which have to carry a real name, tags, number and year — something a generated raster cannot. Needs a slot on the profile. |
 | `HauntStepCounter.tsx` | Four-stage progress pip row (`tone → write → place → seal`). | From an earlier multi-step Drop a Haunt. The flow is one page now; restore this if it ever splits again. |
 
 ## Before wiring one up

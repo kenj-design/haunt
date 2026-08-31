@@ -15,8 +15,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Check, Copy, KeyRound, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Check, Copy, TriangleAlert } from 'lucide-react'
 import { PrimaryButton } from '../components/ui'
+import StampPage from '../components/StampPage'
 
 type Stage = 'confirm' | 'showing'
 
@@ -92,9 +93,7 @@ export default function SaveRecoveryCode({
       </header>
 
       <main className="relative z-10 flex min-h-0 flex-1 flex-col justify-center">
-        <div className="onboarding-final-orb mx-auto mb-8" aria-hidden="true">
-          <KeyRound size={22} strokeWidth={1.25} />
-        </div>
+        <StampPage slot="recovery" eager className="mx-auto mb-7 w-[172px]" />
 
         {stage === 'confirm' ? (
           <>

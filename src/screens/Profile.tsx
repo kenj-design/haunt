@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { Check, Clock, KeyRound, UserRoundPlus, X } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { Avatar, ScreenHeader, VibePill } from '../components/ui'
+import StampPage from '../components/StampPage'
 
 function Stat({ value, label }: { value: number; label: string }) {
   return (
@@ -187,10 +188,13 @@ export default function Profile({
               Friends <span className="text-ink-3">· {friends.length}</span>
             </p>
             {friends.length === 0 ? (
-              <p className="mt-3 rounded-[22px] border border-line bg-surface px-4 py-6 text-center text-[12px] leading-relaxed text-ink-3">
-                no one yet. haunts travel through people, so this is where the map
-                starts filling in.
-              </p>
+              <div className="mt-3 flex flex-col items-center rounded-[22px] border border-line bg-surface px-4 py-7">
+                <StampPage slot="friendsEmpty" className="w-[132px]" />
+                <p className="mt-4 text-center text-[12px] leading-relaxed text-ink-3">
+                  no one yet. haunts travel through people, so this is where the map
+                  starts filling in.
+                </p>
+              </div>
             ) : (
               <div className="mt-3 flex flex-col gap-2">
                 {friends.map((f) => (
@@ -242,6 +246,14 @@ export default function Profile({
               <p className="text-[14px] font-medium tracking-[-0.015em] text-ink-2">Keepsakes</p>
               <span className="text-[11px] text-ink-3">{keepsakes.length}</span>
             </div>
+            {keepsakes.length === 0 && (
+              <div className="mt-3 flex flex-col items-center rounded-[22px] border border-line bg-surface px-4 py-7">
+                <StampPage slot="keepsakesEmpty" className="w-[132px]" />
+                <p className="mt-4 text-center text-[12px] leading-relaxed text-ink-3">
+                  nothing kept yet. logging a visit is what mints one.
+                </p>
+              </div>
+            )}
             <div className="mt-3 grid grid-cols-2 gap-2.5">
               {keepsakes.map((keepsake) => (
                 <button
