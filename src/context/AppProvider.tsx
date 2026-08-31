@@ -139,8 +139,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // --- navigation -----------------------------------------------------------
 
-  const navigate = useCallback((next: Screen) => {
-    setStack((current) => [...current, next])
+  const navigate = useCallback((next: Screen, options?: { replace?: boolean }) => {
+    setStack((current) =>
+      options?.replace ? [...current.slice(0, -1), next] : [...current, next],
+    )
   }, [])
 
   const goBack = useCallback(() => {
@@ -232,20 +234,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutate, source],
   )
 
+  /*
+   * Stays on the drop screen deliberately.
+   *
+   * The screen keeps its own aftermath — the fog holds, then lifts onto a
+   * confirmation — so navigating away from here would cut the ceremony short and
+   * unmount the shroud mid-flood. The haunt comes back so that screen can name
+   * the place it just made.
+   */
   const dropHaunt = useCallback(
-    (draft: HauntDraft) =>
-      mutate(
+    async (draft: HauntDraft): Promise<Haunt | null> => {
+      let dropped: Haunt | null = null
+      const landed = await mutate(
         () => source().dropHaunt(draft),
         ({ haunt, user }, current) => ({ haunts: [...current.haunts, haunt], user }),
         "couldn't leave that haunt",
         ({ haunt }) => {
+          dropped = haunt
+          // Flashes whenever the map is next opened, so a new haunt is findable
+          // without having to open it now.
           setFocusHauntId(haunt.id)
-          setTabState('map')
-          // Open straight onto the new haunt so the finder can review it and
-          // decide whether to share it, with the map behind for the back gesture.
-          setStack([{ name: 'map' }, { name: 'haunt', hauntId: haunt.id }])
         },
-      ),
+      )
+      return landed ? dropped : null
+    },
     [mutate, source],
   )
 

@@ -1,10 +1,14 @@
 /**
  * The fog that swallows the screen when a haunt is released.
  *
- * A companion to `HoldToRelease`: it thickens while the press is held and floods
- * outward from the touch point on release. Separate from `HauntShader` because
- * it is driven by a progress value rather than by time alone — the animation has
- * to finish exactly when the interaction does.
+ * A companion to `HoldToRelease`: it gathers in the orb as the press begins,
+ * floods outward as the hold goes on, and once released it stays — a full,
+ * living cover the drop screen's confirmation is read against. Separate from
+ * `HauntShader` because it is driven by a progress value rather than by time
+ * alone: the flood has to arrive exactly when the interaction does.
+ *
+ * It covers its own box rather than the window, which on a phone is the same
+ * thing and inside the desktop phone frame is not.
  */
 import { useEffect, useRef } from 'react'
 
@@ -232,10 +236,16 @@ export function ShroudEngulfShader({
       lastTime = now
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const displayWidth = window.innerWidth
-      const displayHeight = window.innerHeight
-      const renderWidth = Math.round(displayWidth * dpr)
-      const renderHeight = Math.round(displayHeight * dpr)
+      // Measured every frame from the canvas itself: a window-sized buffer would
+      // stretch the fog across a narrower frame and put its origin somewhere the
+      // orb isn't. Re-measuring also means a resize needs no listener.
+      const box = canvas.getBoundingClientRect()
+      const renderWidth = Math.round(box.width * dpr)
+      const renderHeight = Math.round(box.height * dpr)
+      if (renderWidth === 0 || renderHeight === 0) {
+        animFrameRef.current = requestAnimationFrame(render)
+        return
+      }
 
       if (canvas.width !== renderWidth || canvas.height !== renderHeight) {
         canvas.width = renderWidth
@@ -260,14 +270,15 @@ export function ShroudEngulfShader({
 
       const p = progressRef.current
 
-      // Compute origin directly from button DOM position scaled by DPR
+      // The fog comes out of the orb, so the origin is the orb's centre in this
+      // canvas's own coordinates — and GL counts y upward from the bottom.
       let originX = renderWidth / 2
       let originY = renderHeight * 0.22
-      const btn = document.querySelector('.mystic-ritual-talisman')
-      if (btn) {
-        const rect = btn.getBoundingClientRect()
-        originX = (rect.left + rect.width / 2) * dpr
-        originY = (displayHeight - (rect.top + rect.height / 2)) * dpr
+      const orb = canvas.closest('.mystic-ritual-talisman')
+      if (orb) {
+        const rect = orb.getBoundingClientRect()
+        originX = (rect.left + rect.width / 2 - box.left) * dpr
+        originY = (box.bottom - (rect.top + rect.height / 2)) * dpr
       }
 
       gl.useProgram(program)

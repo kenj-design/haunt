@@ -74,19 +74,34 @@ export interface AppState {
   dismissError: () => void
 
   /*
-   * Actions. Every mutation resolves to whether the change landed, so a screen
-   * that moves on success — `PassHaunt` showing its confirmation, `DropHaunt`
-   * handing its photo URLs over — can wait for the answer instead of assuming
-   * it. Callers with nothing to decide may fire and forget; failures surface
-   * through `error` either way.
+   * Actions. Every mutation resolves to whether the change landed — as a flag,
+   * or as the record itself where the caller needs it — so a screen that moves
+   * on success can wait for the answer instead of assuming it. `PassHaunt` shows
+   * its confirmation that way, and `DropHaunt` hands its photo URLs over. Callers
+   * with nothing to decide may fire and forget; failures surface through `error`
+   * either way.
    */
   completeOnboarding: (handle: string) => Promise<boolean>
-  navigate: (screen: Screen) => void
+  /**
+   * Pushes a screen, or with `replace` swaps the current one for it.
+   *
+   * Replacing is for a screen that has finished its job and should not be
+   * returned to: the drop flow hands its new haunt straight to `pass`, and
+   * going back to an emptied form would be a dead end.
+   */
+  navigate: (screen: Screen, options?: { replace?: boolean }) => void
   goBack: () => void
   setTab: (tab: Tab) => void
   arrive: (hauntId: string) => Promise<boolean>
   logVisit: (hauntId: string) => Promise<boolean>
-  dropHaunt: (draft: HauntDraft) => Promise<boolean>
+  /**
+   * Leaves a haunt, resolving to the record itself rather than to a flag.
+   *
+   * The drop screen needs it: the fog only lifts onto a confirmation once there
+   * is something to confirm, and that confirmation names the place. `null` means
+   * the drop did not land, and `error` says why.
+   */
+  dropHaunt: (draft: HauntDraft) => Promise<Haunt | null>
   shareHaunt: (hauntId: string, story: string) => Promise<boolean>
   passHaunt: (hauntId: string, toHandle: string, note: string) => Promise<boolean>
   sendFriendRequest: (handle: string) => Promise<boolean>

@@ -1349,10 +1349,14 @@ audio {
   font-weight: 600;
 }
 
+/* Sticky footer holding the release orb.
+   The z-index is above the header's 30 for a reason: being sticky makes this a
+   stacking context, and the shroud that engulfs the screen on release is a
+   canvas *inside* it. Lower this and the fog stops covering the header. */
 .notes-action-dock {
   position: sticky;
   bottom: 0;
-  z-index: 6;
+  z-index: 40;
   margin: 23px -16px -8px;
   padding: 18px 16px 12px;
   background: linear-gradient(to bottom, transparent, rgba(11, 13, 17, 0.92) 30%, #0b0d11 66%);
@@ -1788,6 +1792,29 @@ audio {
   transform: translateY(-8px) scale(0.96);
 }
 
+/* The confirmation after a haunt is left reads *inside* the shroud rather than
+   on a card over it: scrim enough to hold white text, thin enough that the fog
+   keeps moving behind the words. */
+.drop-aftermath {
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgba(7, 9, 14, 0.42),
+    rgba(4, 6, 10, 0.86) 74%
+  );
+  backdrop-filter: blur(2px) saturate(0.94);
+  -webkit-backdrop-filter: blur(2px) saturate(0.94);
+  animation: drop-aftermath-in 720ms var(--ease-gentle) both;
+}
+
+@keyframes drop-aftermath-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .haunt-leaflet-map {
   background: #050607;
   font-family: var(--font-sans);
@@ -1933,6 +1960,7 @@ audio {
   .screen-in,
   .fade-in,
   .note-reveal,
+  .drop-aftermath,
   .drop-step-forward,
   .drop-step-back,
   .shroud-formed,

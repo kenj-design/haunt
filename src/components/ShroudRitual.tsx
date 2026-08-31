@@ -18,6 +18,14 @@ import { ShroudEngulfShader } from './ShroudEngulfShader'
 
 const MAX_SHROUD_POINTS = 56
 const RELEASE_DURATION = 2200
+/**
+ * The beat of solid fog between the hold finishing and the action running.
+ *
+ * The screen is fully engulfed by then, so this is the pause where nothing is
+ * visible and the place is simply gone — long enough to feel like a threshold,
+ * short enough not to read as a hang.
+ */
+const ENGULFED_PAUSE = 600
 
 function makeSuggestedShroud(): NormalizedPoint[] {
   const phase = Math.random() * Math.PI * 2
@@ -214,7 +222,14 @@ export function HoldToRelease({
   disabledAriaLabel,
 }: {
   disabled?: boolean
-  onRelease: () => void
+  /**
+   * Runs once the fog has closed over the screen.
+   *
+   * May report back: resolving `false` unwinds the ritual — the fog retreats and
+   * the orb returns — so a refused action never leaves the screen sealed under a
+   * release that did not happen.
+   */
+  onRelease: () => void | Promise<boolean>
   shroudPath?: NormalizedPoint[]
   temperament?: ShroudTemperament
   actionLabel?: string
@@ -246,7 +261,14 @@ export function HoldToRelease({
     setHolding(false)
     setReleased(true)
     if ('vibrate' in navigator) navigator.vibrate([24, 50, 40])
-    releaseTimerRef.current = window.setTimeout(onRelease, 600)
+    releaseTimerRef.current = window.setTimeout(() => {
+      void Promise.resolve(onRelease()).then((landed) => {
+        if (landed === false) {
+          releasedRef.current = false
+          setReleased(false)
+        }
+      })
+    }, ENGULFED_PAUSE)
   }
 
   const begin = () => {

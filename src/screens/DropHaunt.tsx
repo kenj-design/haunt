@@ -4,6 +4,12 @@
  * Hands a `HauntDraft` to the data layer rather than a finished record — the id,
  * lineage, counters, and health all belong to whatever is storing it.
  *
+ * The screen does not leave when the drop lands. The hold closes the fog over
+ * everything, the write happens under it, and the fog then holds while the
+ * confirmation surfaces on top — so the form stays mounted the whole time,
+ * which is also what lets a refused drop come back to a filled-in note rather
+ * than an empty one.
+ *
  * Photos live as in-memory object URLs until the drop lands, so ownership of
  * them transfers at exactly one moment; `drop()` explains the handoff and why it
  * has to happen before the await rather than after.
@@ -22,11 +28,11 @@ import {
   Users,
 } from 'lucide-react'
 import { useApp } from '../context/appState'
-import { ScreenHeader, VibePill } from '../components/ui'
+import { PrimaryButton, ScreenHeader, VibePill } from '../components/ui'
 import ArrivalNoteComposer from '../components/ArrivalNoteComposer'
 import { HoldToRelease } from '../components/ShroudRitual'
 import { GRADIENT_SWATCHES, VIBE_TAGS } from '../domain'
-import type { HauntDraft } from '../domain'
+import type { Haunt, HauntDraft } from '../domain'
 import { zonePreviewTileUrl } from '../lib/geo'
 
 const MAX_PHOTOS = 3
@@ -36,6 +42,17 @@ const MAX_NAME_LENGTH = 50
 const MIN_ZONE_RADIUS_M = 100
 const MAX_ZONE_RADIUS_M = 400
 const DEFAULT_ZONE_RADIUS_M = 200
+
+/**
+ * How long the screen stays wholly under fog before the confirmation surfaces.
+ *
+ * The write can land in a few milliseconds on a fast backend, and the moment is
+ * the point: without a floor under it, the fog would close and lift in the same
+ * breath.
+ */
+const ENGULFED_DWELL_MS = 520
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * Where the haunt gets left.
@@ -52,10 +69,13 @@ function zoneTileStyle(zone: { x: number; y: number }) {
 }
 
 export default function DropHaunt() {
-  const { goBack, dropHaunt, friends, isBusy } = useApp()
+  const { goBack, navigate, dropHaunt, friends, isBusy } = useApp()
   const scrollRef = useRef<HTMLDivElement>(null)
   const photoUrlsRef = useRef<string[]>([])
   const submittedRef = useRef(false)
+  // Non-null once the drop has landed: the haunt this screen just made, and the
+  // signal that the fog is now holding for its confirmation.
+  const [dropped, setDropped] = useState<Haunt | null>(null)
   const [photoUrls, setPhotoUrls] = useState<string[]>([])
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -134,8 +154,8 @@ export default function DropHaunt() {
     goBack()
   }
 
-  const drop = async () => {
-    if (!canSubmit || isBusy) return
+  const drop = async (): Promise<boolean> => {
+    if (!canSubmit || isBusy) return false
 
     const hasAudioNote = arrivalNoteAudioUrl !== null
     const typedNote = arrivalNote.trim()
@@ -157,239 +177,318 @@ export default function DropHaunt() {
       foundedWith: whosHere,
     }
 
-    // Hand the object URLs to the new haunt before awaiting: a successful drop
-    // unmounts this screen from inside the call, and the cleanup below would
-    // otherwise revoke photos the haunt is now showing.
+    // Hand the object URLs over before awaiting: once the drop lands they belong
+    // to the new haunt, and this screen's cleanup would otherwise revoke photos
+    // the haunt is now showing.
     submittedRef.current = true
-    const dropped = await dropHaunt(draft)
-    // Still mounted means it failed, so the photos are ours to clean up again.
-    if (!dropped) submittedRef.current = false
+    const [haunt] = await Promise.all([dropHaunt(draft), wait(ENGULFED_DWELL_MS)])
+    if (!haunt) {
+      // Refused, so the photos are ours to clean up again — and reporting the
+      // failure unwinds the ritual, retreating the fog off a form that still has
+      // everything that was typed into it.
+      submittedRef.current = false
+      return false
+    }
+    setDropped(haunt)
+    return true
   }
 
   return (
-    <div
-      ref={scrollRef}
-      className="drop-screen drop-screen-notes screen-in no-scrollbar h-full overflow-y-auto pb-5"
-    >
-      <ScreenHeader title="Leave a Haunt" serif onBack={goBackFromDrop} />
+    <div className="relative h-full">
+      <div
+        ref={scrollRef}
+        className="drop-screen drop-screen-notes screen-in no-scrollbar h-full overflow-y-auto pb-5"
+        /* Under fog the form is still there and still scrollable, which would let
+           a stray touch or a tab press wander into a screen nobody can see. */
+        inert={dropped !== null}
+      >
+        <ScreenHeader title="Leave a Haunt" serif onBack={goBackFromDrop} />
 
-      <main className="notes-compose px-4 pb-6">
-        <section className="notes-section notes-place-section" aria-labelledby="place-heading">
-          <h2 id="place-heading" className="sr-only">
-            Photo and place name
-          </h2>
-          <div className="notes-place-row">
-            <label
-              className="notes-photo-slot pressable cursor-pointer"
-              title="Add photo"
-              aria-label="Add photo"
-              data-count={photoUrls.length}
-            >
-              {photoUrls.length === 0 ? (
-                <span className="notes-photo-slot-skeleton" aria-hidden="true">
-                  <Camera size={17} strokeWidth={1.35} />
+        <main className="notes-compose px-4 pb-6">
+          <section className="notes-section notes-place-section" aria-labelledby="place-heading">
+            <h2 id="place-heading" className="sr-only">
+              Photo and place name
+            </h2>
+            <div className="notes-place-row">
+              <label
+                className="notes-photo-slot pressable cursor-pointer"
+                title="Add photo"
+                aria-label="Add photo"
+                data-count={photoUrls.length}
+              >
+                {photoUrls.length === 0 ? (
+                  <span className="notes-photo-slot-skeleton" aria-hidden="true">
+                    <Camera size={17} strokeWidth={1.35} />
+                  </span>
+                ) : (
+                  <span className="notes-photo-slot-media" aria-hidden="true">
+                    {photoUrls.map((url, index) => (
+                      <span
+                        key={url}
+                        className={`notes-photo-thumb notes-photo-thumb-${index + 1}`}
+                        style={{
+                          backgroundImage: `linear-gradient(to top,rgba(8,10,15,.25),transparent 64%),url(${url})`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                )}
+                <span className="notes-photo-slot-plus" aria-hidden="true">
+                  <Plus size={15} strokeWidth={1.8} />
                 </span>
-              ) : (
-                <span className="notes-photo-slot-media" aria-hidden="true">
-                  {photoUrls.map((url, index) => (
-                    <span
-                      key={url}
-                      className={`notes-photo-thumb notes-photo-thumb-${index + 1}`}
-                      style={{
-                        backgroundImage: `linear-gradient(to top,rgba(8,10,15,.25),transparent 64%),url(${url})`,
-                      }}
-                    />
-                  ))}
-                </span>
-              )}
-              <span className="notes-photo-slot-plus" aria-hidden="true">
-                <Plus size={15} strokeWidth={1.8} />
-              </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    choosePhotos(event.currentTarget.files)
+                    event.currentTarget.value = ''
+                  }}
+                />
+              </label>
+
               <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="sr-only"
-                onChange={(event) => {
-                  choosePhotos(event.currentTarget.files)
-                  event.currentTarget.value = ''
+                value={name}
+                aria-label="name this place"
+                aria-required="true"
+                maxLength={MAX_NAME_LENGTH}
+                onChange={(event) => setName(event.target.value.slice(0, MAX_NAME_LENGTH))}
+                placeholder="name this place"
+                className="notes-name-input"
+              />
+            </div>
+            {photoError && <p className="notes-error">{photoError}</p>}
+          </section>
+
+          <section className="notes-section notes-main-note-section" aria-labelledby="arrival-heading">
+            <div className="notes-main-note-heading">
+              <div>
+                <h2 id="arrival-heading" className="notes-section-label notes-main-note-title">
+                  leave a note for whoever arrives
+                </h2>
+                <p className="notes-main-note-subtext">optional · locked until they get there</p>
+              </div>
+              <LockKeyhole size={14} strokeWidth={1.45} aria-hidden="true" />
+            </div>
+            <div className="notes-main-note-field">
+              <ArrivalNoteComposer
+                value={arrivalNote}
+                audioUrl={arrivalNoteAudioUrl}
+                audioDuration={arrivalNoteAudioDuration}
+                onTextChange={(value) => {
+                  setArrivalNoteAudioUrl(null)
+                  setArrivalNoteAudioDuration(0)
+                  setArrivalNote(value)
+                }}
+                onAudioChange={(url, duration) => {
+                  setArrivalNote('')
+                  setArrivalNoteAudioUrl(url)
+                  setArrivalNoteAudioDuration(duration)
                 }}
               />
-            </label>
+            </div>
+          </section>
 
-            <input
-              value={name}
-              aria-label="name this place"
-              aria-required="true"
-              maxLength={MAX_NAME_LENGTH}
-              onChange={(event) => setName(event.target.value.slice(0, MAX_NAME_LENGTH))}
-              placeholder="name this place"
-              className="notes-name-input"
-            />
-          </div>
-          {photoError && <p className="notes-error">{photoError}</p>}
-        </section>
-
-        <section className="notes-section notes-main-note-section" aria-labelledby="arrival-heading">
-          <div className="notes-main-note-heading">
-            <div>
-              <h2 id="arrival-heading" className="notes-section-label notes-main-note-title">
-                leave a note for whoever arrives
+          <section className="notes-section notes-feelings-section" aria-labelledby="feelings-heading">
+            <div className="notes-section-heading">
+              <h2 id="feelings-heading" className="notes-section-label">
+                feelings · optional
               </h2>
-              <p className="notes-main-note-subtext">optional · locked until they get there</p>
+              <span className="notes-section-count">{vibes.length} / {MAX_VIBES}</span>
             </div>
-            <LockKeyhole size={14} strokeWidth={1.45} aria-hidden="true" />
-          </div>
-          <div className="notes-main-note-field">
-            <ArrivalNoteComposer
-              value={arrivalNote}
-              audioUrl={arrivalNoteAudioUrl}
-              audioDuration={arrivalNoteAudioDuration}
-              onTextChange={(value) => {
-                setArrivalNoteAudioUrl(null)
-                setArrivalNoteAudioDuration(0)
-                setArrivalNote(value)
-              }}
-              onAudioChange={(url, duration) => {
-                setArrivalNote('')
-                setArrivalNoteAudioUrl(url)
-                setArrivalNoteAudioDuration(duration)
-              }}
-            />
-          </div>
-        </section>
+            <div className="notes-vibe-grid">
+              {VIBE_TAGS.map((tag) => (
+                <VibePill key={tag} label={tag} active={vibes.includes(tag)} onClick={() => toggleVibe(tag)} />
+              ))}
+            </div>
+          </section>
 
-        <section className="notes-section notes-feelings-section" aria-labelledby="feelings-heading">
-          <div className="notes-section-heading">
-            <h2 id="feelings-heading" className="notes-section-label">
-              feelings · optional
-            </h2>
-            <span className="notes-section-count">{vibes.length} / {MAX_VIBES}</span>
-          </div>
-          <div className="notes-vibe-grid">
-            {VIBE_TAGS.map((tag) => (
-              <VibePill key={tag} label={tag} active={vibes.includes(tag)} onClick={() => toggleVibe(tag)} />
-            ))}
-          </div>
-        </section>
-
-        <section className="notes-section notes-zone-section" aria-labelledby="zone-heading">
-          <div className="notes-zone-row">
-            <span className="notes-zone-thumb" style={zoneTileStyle(zonePoint)} aria-hidden="true">
-              <MapPin size={15} strokeWidth={1.55} />
-            </span>
-            <span className="notes-zone-copy">
-              <span id="zone-heading" className="notes-zone-title">
-                Dumaguete · {radius}m zone
+          <section className="notes-section notes-zone-section" aria-labelledby="zone-heading">
+            <div className="notes-zone-row">
+              <span className="notes-zone-thumb" style={zoneTileStyle(zonePoint)} aria-hidden="true">
+                <MapPin size={15} strokeWidth={1.55} />
               </span>
-              <span className="notes-zone-subtext">friends see this area, not the exact spot</span>
-            </span>
-            <button
-              type="button"
-              className="notes-inline-edit pressable"
-              aria-expanded={zoneEditing}
-              onClick={() => setZoneEditing((editing) => !editing)}
-            >
-              edit
-            </button>
-          </div>
-          {zoneEditing && (
-            <div className="notes-zone-editor">
-              <div className="notes-zone-editor-heading">
-                <span>zone radius</span>
-                <strong>{radius}m</strong>
-              </div>
-              <input
-                type="range"
-                min={MIN_ZONE_RADIUS_M}
-                max={MAX_ZONE_RADIUS_M}
-                step={10}
-                value={radius}
-                aria-label="zone radius in metres"
-                onChange={(event) => setRadius(Number(event.target.value))}
-              />
-              <div className="notes-zone-editor-scale" aria-hidden="true">
-                <span>{MIN_ZONE_RADIUS_M}m</span>
-                <span>{MAX_ZONE_RADIUS_M}m</span>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="notes-group-section">
-          <button
-            type="button"
-            className="notes-group-link pressable"
-            aria-expanded={askGroup}
-            onClick={() => setAskGroup((open) => !open)}
-          >
-            <Users size={14} strokeWidth={1.45} aria-hidden="true" />
-            <span>friends with you? found it together</span>
-            <ChevronDown
-              size={14}
-              strokeWidth={1.45}
-              className={`notes-group-chevron ${askGroup ? 'is-open' : ''}`}
-              aria-hidden="true"
-            />
-          </button>
-          {askGroup && (
-            <div className="notes-group-panel">
-              <p className="notes-group-helper">choose anyone who is here with you</p>
-              <div className="notes-group-list">
-                {friends.map((friend) => {
-                  const selected = whosHere.includes(friend.handle)
-                  return (
-                    <button
-                      type="button"
-                      key={friend.handle}
-                      onClick={() =>
-                        setWhosHere((current) =>
-                          selected
-                            ? current.filter((handle) => handle !== friend.handle)
-                            : [...current, friend.handle],
-                        )
-                      }
-                      aria-pressed={selected}
-                      className={`notes-group-person pressable ${selected ? 'is-selected' : ''}`}
-                    >
-                      <span>{friend.handle}</span>
-                      <span className="notes-group-check" aria-hidden="true">
-                        {selected ? (
-                          <Check size={14} strokeWidth={1.9} />
-                        ) : (
-                          <span className="notes-group-empty-check" />
-                        )}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
+              <span className="notes-zone-copy">
+                <span id="zone-heading" className="notes-zone-title">
+                  Dumaguete · {radius}m zone
+                </span>
+                <span className="notes-zone-subtext">friends see this area, not the exact spot</span>
+              </span>
               <button
                 type="button"
-                className="notes-group-done pressable"
-                onClick={() => setAskGroup(false)}
+                className="notes-inline-edit pressable"
+                aria-expanded={zoneEditing}
+                onClick={() => setZoneEditing((editing) => !editing)}
               >
-                {whosHere.length > 0
-                  ? `founding with ${whosHere.length} friend${whosHere.length === 1 ? '' : 's'}`
-                  : 'just me'}
+                edit
               </button>
             </div>
-          )}
-        </section>
+            {zoneEditing && (
+              <div className="notes-zone-editor">
+                <div className="notes-zone-editor-heading">
+                  <span>zone radius</span>
+                  <strong>{radius}m</strong>
+                </div>
+                <input
+                  type="range"
+                  min={MIN_ZONE_RADIUS_M}
+                  max={MAX_ZONE_RADIUS_M}
+                  step={10}
+                  value={radius}
+                  aria-label="zone radius in metres"
+                  onChange={(event) => setRadius(Number(event.target.value))}
+                />
+                <div className="notes-zone-editor-scale" aria-hidden="true">
+                  <span>{MIN_ZONE_RADIUS_M}m</span>
+                  <span>{MAX_ZONE_RADIUS_M}m</span>
+                </div>
+              </div>
+            )}
+          </section>
 
-        <div className="notes-action-dock">
-          <HoldToRelease
-            disabled={!canSubmit || isBusy}
-            onRelease={() => void drop()}
-            actionLabel="hold to add the haunt"
-            releasedLabel="added"
-            disabledLabel="name the place first"
-            disabledSubtext="then hold to add"
-            actionAriaLabel="Press and hold the fog orb to add this haunt"
-            disabledAriaLabel="Name the place first to add this haunt"
-          />
-        </div>
-      </main>
+          <section className="notes-group-section">
+            <button
+              type="button"
+              className="notes-group-link pressable"
+              aria-expanded={askGroup}
+              onClick={() => setAskGroup((open) => !open)}
+            >
+              <Users size={14} strokeWidth={1.45} aria-hidden="true" />
+              <span>friends with you? found it together</span>
+              <ChevronDown
+                size={14}
+                strokeWidth={1.45}
+                className={`notes-group-chevron ${askGroup ? 'is-open' : ''}`}
+                aria-hidden="true"
+              />
+            </button>
+            {askGroup && (
+              <div className="notes-group-panel">
+                <p className="notes-group-helper">choose anyone who is here with you</p>
+                <div className="notes-group-list">
+                  {friends.map((friend) => {
+                    const selected = whosHere.includes(friend.handle)
+                    return (
+                      <button
+                        type="button"
+                        key={friend.handle}
+                        onClick={() =>
+                          setWhosHere((current) =>
+                            selected
+                              ? current.filter((handle) => handle !== friend.handle)
+                              : [...current, friend.handle],
+                          )
+                        }
+                        aria-pressed={selected}
+                        className={`notes-group-person pressable ${selected ? 'is-selected' : ''}`}
+                      >
+                        <span>{friend.handle}</span>
+                        <span className="notes-group-check" aria-hidden="true">
+                          {selected ? (
+                            <Check size={14} strokeWidth={1.9} />
+                          ) : (
+                            <span className="notes-group-empty-check" />
+                          )}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="notes-group-done pressable"
+                  onClick={() => setAskGroup(false)}
+                >
+                  {whosHere.length > 0
+                    ? `founding with ${whosHere.length} friend${whosHere.length === 1 ? '' : 's'}`
+                    : 'just me'}
+                </button>
+              </div>
+            )}
+          </section>
+
+          <div className="notes-action-dock">
+            <HoldToRelease
+              disabled={!canSubmit || isBusy}
+              onRelease={drop}
+              actionLabel="hold to add the haunt"
+              releasedLabel="added"
+              disabledLabel="name the place first"
+              disabledSubtext="then hold to add"
+              actionAriaLabel="Press and hold the fog orb to add this haunt"
+              disabledAriaLabel="Name the place first to add this haunt"
+            />
+          </div>
+        </main>
+      </div>
+      {dropped && (
+        <Aftermath
+          haunt={dropped}
+          canPass={friends.length > 0}
+          onMap={goBack}
+          onPass={() => navigate({ name: 'pass', hauntId: dropped.id }, { replace: true })}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * What the fog lifts onto.
+ *
+ * Sits above the shroud instead of replacing it: the place is left, the screen
+ * is still under fog, and there are only two things left to do — go back to the
+ * map, or hand the place to one person. It renders the haunt the backend handed
+ * back rather than looking one up, so it can only ever name a place that really
+ * landed.
+ */
+function Aftermath({
+  haunt,
+  canPass,
+  onMap,
+  onPass,
+}: {
+  haunt: Haunt
+  canPass: boolean
+  onMap: () => void
+  onPass: () => void
+}) {
+  return (
+    <div className="drop-aftermath absolute inset-0 z-[60] flex flex-col items-center justify-center px-9 text-center">
+      <div className="glass-panel note-reveal flex h-16 w-16 items-center justify-center rounded-full">
+        <MapPin size={22} strokeWidth={1.5} className="text-white" />
+      </div>
+      <h1 className="mt-7 text-[30px] font-semibold tracking-[-0.045em] text-ink">
+        left in the fog
+      </h1>
+      <p className="mt-3 text-[13px] leading-relaxed text-ink-2">
+        <span className="text-ink">{haunt.name}</span> is resting where you stood.
+        Friends see a {haunt.zone.radiusM}m zone, never the exact spot.
+      </p>
+      {haunt.arrivalNoteKind && (
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
+          your note stays sealed until someone gets there
+        </p>
+      )}
+
+      <div className="mt-10 flex w-full flex-col gap-2">
+        {canPass ? (
+          <>
+            <PrimaryButton onClick={onPass}>pass it on</PrimaryButton>
+            <PrimaryButton variant="ghost" onClick={onMap}>
+              back to the map
+            </PrimaryButton>
+          </>
+        ) : (
+          <>
+            <PrimaryButton onClick={onMap}>back to the map</PrimaryButton>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-3">
+              you can pass it on once there is someone to pass it to
+            </p>
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -105,6 +105,10 @@ Do not rediscover these:
 - **Leaflet fixes its pixel origin at creation.** A container measuring 0×0 at
   that moment poisons the projection permanently and no later `invalidateSize`
   recovers it. Both map components wait for a non-zero measurement; keep that.
+- **The fog that engulfs the screen on release is a canvas inside the drop
+  screen's sticky action dock**, and `position: sticky` makes that dock a
+  stacking context — so the dock's `z-index` decides whether the fog covers the
+  header. It is 40 for that reason. Lowering it silently breaks the ceremony.
 - **Geolocation is slow and blocking.** Positions are cached for 60s, refusals
   included. Arrival deliberately bypasses the cache — it needs a current fix.
   Do not "simplify" that away.
