@@ -1,6 +1,6 @@
 import PhoneFrame from './PhoneFrame'
 import { PrimaryButton } from './ui'
-import StampPage from './StampPage'
+import Stamp from './Stamp'
 
 /**
  * What the app shows before there is anything to show.
@@ -27,7 +27,7 @@ export default function BootScreen({
     <PhoneFrame>
       <div className="flex flex-1 flex-col items-center justify-center px-10 text-center">
         {failed ? (
-          <StampPage slot="dark" eager className="w-[172px]" />
+          <Stamp slot="dark" eager className="w-[216px]" />
         ) : (
           <div
             className="zone-breathe flex h-16 w-16 items-center justify-center rounded-full border border-white/[0.13] bg-white/[0.05] shadow-[inset_0_1px_0_rgba(255,255,255,.09)] backdrop-blur-xl"

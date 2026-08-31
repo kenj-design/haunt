@@ -17,7 +17,7 @@ import {
   normalizeRecoveryCode,
 } from '../lib/recoveryCode'
 import { PrimaryButton } from '../components/ui'
-import StampPage from '../components/StampPage'
+import Stamp from '../components/Stamp'
 
 export default function SignIn({
   onStartFresh,
@@ -69,7 +69,7 @@ export default function SignIn({
       <main className="relative z-10 flex min-h-0 flex-1 flex-col justify-center">
         {mode === 'choose' ? (
           <>
-            <StampPage slot="signIn" eager className="note-reveal mx-auto mb-9 w-[188px]" />
+            <Stamp slot="signIn" eager className="note-reveal mx-auto mb-8 w-[236px]" />
             <p className="onboarding-kicker">Haunt · private places</p>
             <h1 className="mt-3 text-[34px] font-semibold leading-[1.06] tracking-[-0.05em] text-white">
               Some places<br />find you.

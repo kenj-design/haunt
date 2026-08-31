@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { Check, Clock, KeyRound, UserRoundPlus, X } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { Avatar, ScreenHeader, VibePill } from '../components/ui'
-import StampPage from '../components/StampPage'
+import Stamp from '../components/Stamp'
 
 function Stat({ value, label }: { value: number; label: string }) {
   return (
@@ -189,7 +189,7 @@ export default function Profile({
             </p>
             {friends.length === 0 ? (
               <div className="mt-3 flex flex-col items-center rounded-[22px] border border-line bg-surface px-4 py-7">
-                <StampPage slot="friendsEmpty" className="w-[132px]" />
+                <Stamp slot="friendsEmpty" className="w-[168px]" />
                 <p className="mt-4 text-center text-[12px] leading-relaxed text-ink-3">
                   no one yet. haunts travel through people, so this is where the map
                   starts filling in.
@@ -248,7 +248,7 @@ export default function Profile({
             </div>
             {keepsakes.length === 0 && (
               <div className="mt-3 flex flex-col items-center rounded-[22px] border border-line bg-surface px-4 py-7">
-                <StampPage slot="keepsakesEmpty" className="w-[132px]" />
+                <Stamp slot="keepsakesEmpty" className="w-[168px]" />
                 <p className="mt-4 text-center text-[12px] leading-relaxed text-ink-3">
                   nothing kept yet. logging a visit is what mints one.
                 </p>

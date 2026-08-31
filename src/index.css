@@ -1800,18 +1800,11 @@ audio {
   transform: none;
 }
 
-/* A sheet of paper on the dark: soft corner, a little weight under it, and a
-   hairline on the top edge so it reads as an object with a thickness. */
-.stamp-page {
+/* An impression on the dark. The paper is keyed out of the asset itself, so
+   there is nothing to round off, nothing to cast a shadow, and no rectangle to
+   hide — only ink, already in the app's colours. */
+.stamp-mark {
   display: block;
-  border-radius: 5px;
-  /* Paper this bright against pure black shouts; knocking it back a little lets
-     it sit in the palette and makes the ink read as ink. */
-  filter: brightness(0.93) saturate(0.96);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 2px 5px rgba(0, 0, 0, 0.42),
-    0 20px 42px rgba(0, 0, 0, 0.55);
 }
 
 /* Photos, full size, on their own ground. */

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { PrimaryButton } from '../components/ui'
-import StampPage from '../components/StampPage'
+import Stamp from '../components/Stamp'
 
 type PermissionKind = 'contacts' | 'notifications' | 'location'
 type PermissionStatus = 'idle' | 'requesting' | 'granted' | 'denied'
@@ -222,7 +222,7 @@ export default function Onboarding() {
       <main className="relative z-10 min-h-0 flex-1">
         {step === 1 && (
           <OnboardingStep key={1} className="justify-end pb-6 pt-12">
-            <StampPage slot="onboardOpen" eager tilt={-1.9} className="note-reveal mb-auto mt-6 w-[198px]" />
+            <Stamp slot="onboardOpen" eager tilt={-1.9} className="note-reveal mb-auto mt-4 w-[250px]" />
             <p className="onboarding-kicker">Haunt · private places</p>
             <h1 className="mt-3 max-w-[335px] text-[42px] font-semibold leading-[0.98] tracking-[-0.055em] text-white">
               Some places<br />find you.
@@ -238,7 +238,7 @@ export default function Onboarding() {
 
         {step === 2 && (
           <OnboardingStep key={2} className="justify-center py-8">
-            <StampPage slot="onboardPassed" tilt={1.7} className="note-reveal mb-9 w-[190px]" />
+            <Stamp slot="onboardPassed" tilt={1.7} className="note-reveal mb-8 w-[244px]" />
             <p className="onboarding-kicker">Passed person to person</p>
             <h1 className="mt-3 text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
               No feed. No ratings. Just a map with secrets.
@@ -394,7 +394,7 @@ export default function Onboarding() {
 
         {step === 6 && (
           <OnboardingStep key={6} className="justify-end pb-6 pt-8">
-            <StampPage slot="onboardWaiting" tilt={-1.2} className="mb-auto mt-8 w-[178px]" />
+            <Stamp slot="onboardWaiting" tilt={-1.2} className="mb-auto mt-6 w-[228px]" />
             <div className="onboarding-handle-chip">@{handle || 'you'} · the map remembers</div>
             <h1 className="mt-5 text-[34px] font-semibold leading-[1.06] tracking-[-0.05em] text-white">
               A place is already waiting for you.
