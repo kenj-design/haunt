@@ -164,6 +164,35 @@ mockup photography, desks, hands, plants, coffee cups, watermarks.
     no border, no shadow — the artwork must reach all four edges.
 ```
 
+### If it hands you a contact sheet
+
+Asked for twenty-one images, a model will often answer with one image containing
+all twenty-one, numbered in the corners. The style will be right and the files
+will be useless: each cell lands at a couple of hundred pixels, and the numbers
+are baked in.
+
+Keep the sheet — it is the style reference, and the hard part is done. Then paste
+it back and pull the cells out one at a time:
+
+```
+Here is the sheet you made. I need each cell as its own image now.
+
+Take cell 04 and reproduce it as a standalone square image at full resolution.
+Keep the paper, the ink colours, the carving and the wear exactly as they are in
+that cell — this is a reproduction, not a reinterpretation. The stamp sits low and
+slightly left of centre, with generous empty paper around it and more below it
+than above. Remove the number. No labels, no grid lines, no borders, no text of
+any kind. The paper fills the frame and bleeds off all four edges.
+```
+
+Then "now cell 05", and so on. Two of them need their brief restating, because a
+grid cell cannot show either one properly:
+
+- **20** must be a *seamless, tileable* paper texture at 1024 with no stamp on it
+  at all, tiling edge to edge with no visible seam.
+- **21** must be square, with the artwork filling the frame and only a small even
+  margin — in a contact sheet it tends to come out as a landscape crop.
+
 ## Where each one lands
 
 | # | File in `public/art/` | Appears | Size |
