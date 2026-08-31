@@ -92,8 +92,12 @@ export default function SaveRecoveryCode({
         <span className="w-10" />
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col justify-center">
-        <Stamp slot="recovery" eager className="mx-auto mb-6 w-[212px]" />
+      <main className="onboarding-step relative z-10 flex min-h-0 flex-1 flex-col">
+        {/* Same art zone and same actions at the foot as the onboarding steps
+            either side of this screen, so the sequence does not lurch. */}
+        <div className="onboarding-art onboarding-art-small">
+          <Stamp slot="recovery" eager tilt={1.4} className="w-[148px]" />
+        </div>
 
         {stage === 'confirm' ? (
           <>
@@ -115,7 +119,7 @@ export default function SaveRecoveryCode({
 
             {error && <p className="fade-in mt-4 text-center text-[12px] text-fof">{error}</p>}
 
-            <div className="mt-9 flex flex-col gap-2">
+            <div className="onboarding-actions">
               <PrimaryButton disabled={busy} onClick={() => void generate()}>
                 {busy ? 'making…' : 'make a new code'}
               </PrimaryButton>
@@ -191,7 +195,7 @@ export default function SaveRecoveryCode({
               </span>
             </button>
 
-            <div className="mt-6">
+            <div className="onboarding-actions">
               <PrimaryButton disabled={!confirmed || !code} onClick={onDone}>
                 {replacing ? 'done' : 'open the map'}
               </PrimaryButton>

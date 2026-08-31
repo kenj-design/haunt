@@ -5,12 +5,16 @@
  * recovery code. There is no third option and nothing to sign up for — the
  * account is made by opening the app.
  *
+ * Laid out like an onboarding step, because it is the step before them: the same
+ * header, the same art zone, the same actions at the foot. It says what the app
+ * is in one line rather than repeating what the first step is about to explain.
+ *
  * Only appears with a backend that has accounts. On the mock backend there is
  * one imaginary person and this screen never renders.
  */
 
 import { useState } from 'react'
-import { ArrowLeft, KeyRound } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import {
   formatRecoveryCode,
   isRecoveryCodeComplete,
@@ -48,38 +52,46 @@ export default function SignIn({
 
   return (
     <div className="onboarding-shell relative flex h-full flex-col overflow-hidden bg-black px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))]">
-      <header className="relative z-20 flex min-h-11 items-center">
-        {mode === 'code' ? (
-          <button
-            type="button"
-            onClick={() => {
-              setMode('choose')
-              setError(null)
-            }}
-            className="onboarding-icon-button pressable flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-white/74"
-            aria-label="go back"
-          >
-            <ArrowLeft size={17} strokeWidth={1.6} />
-          </button>
-        ) : (
-          <span className="onboarding-mini-orb" aria-hidden="true" />
-        )}
+      <header className="relative z-20 flex min-h-11 items-center justify-between">
+        <div className="flex min-w-11 items-center">
+          {mode === 'code' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMode('choose')
+                setError(null)
+              }}
+              className="onboarding-icon-button pressable flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-white/74"
+              aria-label="go back"
+            >
+              <ArrowLeft size={17} strokeWidth={1.6} />
+            </button>
+          ) : (
+            <span className="onboarding-mini-orb" aria-hidden="true" />
+          )}
+        </div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/38">
+          Haunt
+        </p>
+        <span className="w-11" />
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col justify-center">
+      <main className="onboarding-step relative z-10 flex min-h-0 flex-1 flex-col">
         {mode === 'choose' ? (
           <>
-            <Stamp slot="signIn" eager className="note-reveal mx-auto mb-8 w-[236px]" />
-            <p className="onboarding-kicker">Haunt · private places</p>
-            <h1 className="mt-3 text-[34px] font-semibold leading-[1.06] tracking-[-0.05em] text-white">
-              Some places<br />find you.
+            <div className="onboarding-art">
+              <Stamp slot="signIn" eager className="note-reveal w-[240px]" />
+            </div>
+            <h1 className="text-[34px] font-semibold leading-[1.06] tracking-[-0.05em] text-white">
+              A private map of real places.
             </h1>
-            <p className="mt-4 text-[15px] leading-[1.5] text-white/52">
-              No email, no password. This device becomes your account, and a
-              recovery code is how you carry it anywhere else.
+            <p className="mt-4 text-[15px] leading-[1.52] text-white/54">
+              Friends hand them to each other one at a time. No email and no
+              password: this device is the account, and a recovery code is how you
+              carry it to another one.
             </p>
 
-            <div className="mt-9 flex flex-col gap-2">
+            <div className="onboarding-actions">
               <PrimaryButton disabled={busy} onClick={() => void run(onStartFresh)}>
                 {busy ? 'opening…' : 'start here'}
               </PrimaryButton>
@@ -90,11 +102,10 @@ export default function SignIn({
           </>
         ) : (
           <>
-            <div className="onboarding-final-orb mx-auto mb-9" aria-hidden="true">
-              <KeyRound size={22} strokeWidth={1.25} />
+            <div className="onboarding-art onboarding-art-small">
+              <Stamp slot="recovery" eager tilt={1.4} className="w-[132px]" />
             </div>
-            <p className="onboarding-kicker">Bring your account across</p>
-            <h1 className="mt-3 text-[30px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
+            <h1 className="text-[30px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
               Enter your recovery code.
             </h1>
             <p className="mt-3 text-[14px] leading-[1.5] text-white/50">
@@ -128,7 +139,7 @@ export default function SignIn({
               merged into another one.
             </p>
 
-            <div className="mt-7">
+            <div className="onboarding-actions">
               <PrimaryButton
                 disabled={!ready || busy}
                 onClick={() => void run(() => onRecoverWithCode(code))}

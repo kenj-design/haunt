@@ -20,6 +20,18 @@ if (import.meta.env.DEV) {
   })
 }
 
+/*
+ * Ask the browser to keep our storage, and don't wait for the answer.
+ *
+ * The entire account lives in one localStorage key — Supabase's refresh token —
+ * and there is no server-side way back in, because the recovery code is derived
+ * rather than stored. So an eviction is not an inconvenience, it is account loss.
+ * Chromium grants this silently once a site has any engagement; Safari ties it to
+ * the app being on the Home Screen, which is also where its seven-day cap on
+ * script-writable storage stops applying.
+ */
+void navigator.storage?.persist?.()?.catch(() => undefined)
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
