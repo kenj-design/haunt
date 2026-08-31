@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Bell,
   Check,
+  Image as ImageIcon,
   Link2,
   MapPin,
   Share2,
@@ -24,6 +25,9 @@ import {
 import { useApp } from '../context/appState'
 import { PrimaryButton } from '../components/ui'
 import Stamp from '../components/Stamp'
+import ShareStory from '../components/ShareStory'
+import { inviteLabel, inviteLink } from '../lib/invite'
+import { stringSeed } from '../lib/seed'
 
 type PermissionKind = 'notifications' | 'location'
 /** `unsupported` is not a failure — it is a browser that has no such API. */
@@ -87,15 +91,8 @@ export default function Onboarding() {
     useState<Record<PermissionKind, PermissionStatus>>(initialPermissions)
 
   const claimed = handle.trim().length >= 3
-  /*
-   * A link back to this app, not to a domain nobody owns — it used to point at
-   * haunt.place, which does not resolve. `?add=` is read on boot and turned into
-   * a real request to know them; see AppProvider.
-   */
-  const inviteLink = useMemo(() => {
-    const origin = typeof window === 'undefined' ? '' : window.location.origin
-    return `${origin}/?add=${encodeURIComponent(handle.trim() || 'friend')}`
-  }, [handle])
+  // `?add=` is read back on boot and turned into a real request to know them.
+  const invite = useMemo(() => inviteLink(handle), [handle])
 
   const askable = PERMISSIONS.filter(
     (permission) => permissions[permission.id] !== 'unsupported',
@@ -159,10 +156,10 @@ export default function Onboarding() {
 
   const copyInvite = async () => {
     try {
-      await navigator.clipboard.writeText(inviteLink)
+      await navigator.clipboard.writeText(invite)
     } catch {
       const textArea = document.createElement('textarea')
-      textArea.value = inviteLink
+      textArea.value = invite
       textArea.style.position = 'fixed'
       textArea.style.opacity = '0'
       document.body.appendChild(textArea)
@@ -182,7 +179,7 @@ export default function Onboarding() {
       await navigator.share({
         title: 'Come find me on Haunt',
         text: `I saved you a way into Haunt. Find me as @${handle.trim()}.`,
-        url: inviteLink,
+        url: invite,
       })
       setShareStatus('invite sent into the wild')
     } catch (error) {
@@ -361,6 +358,21 @@ export default function Onboarding() {
             <div className="mt-6 grid grid-cols-2 gap-2.5">
               <InviteAction icon={Share2} label="other apps" onClick={shareInvite} />
               <InviteAction icon={Link2} label="copy link" onClick={copyInvite} />
+              <ShareStory
+                card={{
+                  title: 'Some places find you.',
+                  caption: `@${handle.trim() || 'you'}`,
+                  footer: inviteLabel(handle),
+                  seed: stringSeed(handle || 'haunt'),
+                }}
+                name={`haunt-invite-${handle.trim() || 'you'}`}
+                className="onboarding-invite-action pressable col-span-2 flex min-h-[68px] w-full cursor-pointer items-center gap-3 rounded-[20px] px-4 text-left text-[12px] font-semibold text-white/82"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-white/76">
+                  <ImageIcon size={16} strokeWidth={1.6} />
+                </span>
+                share to a story
+              </ShareStory>
             </div>
             <div className="h-6 pt-2 text-center">
               {shareStatus && <p className="fade-in text-[11px] text-visited">{shareStatus}</p>}

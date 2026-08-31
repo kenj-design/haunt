@@ -30,7 +30,10 @@ import {
   Users,
 } from 'lucide-react'
 import { useApp } from '../context/appState'
-import { PrimaryButton, ScreenHeader, VibePill } from '../components/ui'
+import { PrimaryButton, primaryButtonClass, ScreenHeader, VibePill } from '../components/ui'
+import ShareStory from '../components/ShareStory'
+import { inviteLabel } from '../lib/invite'
+import { stringSeed } from '../lib/seed'
 import ArrivalNoteComposer from '../components/ArrivalNoteComposer'
 import { HoldToRelease } from '../components/ShroudRitual'
 import { GRADIENT_SWATCHES, VIBE_TAGS } from '../domain'
@@ -71,7 +74,7 @@ function zoneTileStyle(zone: { x: number; y: number }) {
 }
 
 export default function DropHaunt() {
-  const { goBack, navigate, dropHaunt, friends, isBusy } = useApp()
+  const { goBack, navigate, dropHaunt, friends, user, isBusy } = useApp()
   const scrollRef = useRef<HTMLDivElement>(null)
   const photoUrlsRef = useRef<string[]>([])
   const submittedRef = useRef(false)
@@ -431,6 +434,7 @@ export default function DropHaunt() {
           haunt={dropped}
           canPass={friends.length > 0}
           onMap={goBack}
+          inviteFooter={inviteLabel(user.handle)}
           onOpen={() => navigate({ name: 'haunt', hauntId: dropped.id }, { replace: true })}
           onPass={() => navigate({ name: 'pass', hauntId: dropped.id }, { replace: true })}
         />
@@ -451,12 +455,14 @@ export default function DropHaunt() {
 function Aftermath({
   haunt,
   canPass,
+  inviteFooter,
   onMap,
   onOpen,
   onPass,
 }: {
   haunt: Haunt
   canPass: boolean
+  inviteFooter: string
   onMap: () => void
   onOpen: () => void
   onPass: () => void
@@ -512,6 +518,20 @@ function Aftermath({
         <PrimaryButton variant={canPass ? 'green-outline' : 'solid'} onClick={onOpen}>
           open it
         </PrimaryButton>
+        <ShareStory
+          card={{
+            title: haunt.name,
+            caption: ['DUMAGUETE', haunt.vibeTags.slice(0, 3).join(' / ')]
+              .filter(Boolean)
+              .join(' · '),
+            footer: inviteFooter,
+            seed: stringSeed(haunt.id),
+          }}
+          name={`haunt-${haunt.id.slice(0, 8)}`}
+          className={primaryButtonClass('ghost')}
+        >
+          share to a story
+        </ShareStory>
       </div>
       <button
         type="button"

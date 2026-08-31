@@ -35,7 +35,17 @@ import {
   Volume2,
 } from 'lucide-react'
 import { useApp } from '../context/appState'
-import { Avatar, hauntArtworkStyle, PrimaryButton, ScreenHeader, VibePill } from '../components/ui'
+import {
+  Avatar,
+  hauntArtworkStyle,
+  primaryButtonClass,
+  PrimaryButton,
+  ScreenHeader,
+  VibePill,
+} from '../components/ui'
+import ShareStory from '../components/ShareStory'
+import { inviteLabel } from '../lib/invite'
+import { stringSeed } from '../lib/seed'
 import { AudioNotePlayer } from '../components/ArrivalNoteComposer'
 import PhotoGallery from '../components/PhotoGallery'
 import { isGroupFounded } from '../domain'
@@ -509,6 +519,24 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
                   >
                     pass this haunt
                   </PrimaryButton>
+                )}
+                {isOwn && (
+                  /* Only your own places. A story is public, and someone else's
+                     haunt is not yours to post. */
+                  <ShareStory
+                    card={{
+                      title: haunt.name,
+                      caption: ['DUMAGUETE', haunt.vibeTags.slice(0, 3).join(' / ')]
+                        .filter(Boolean)
+                        .join(' · '),
+                      footer: inviteLabel(user.handle),
+                      seed: stringSeed(haunt.id),
+                    }}
+                    name={`haunt-${haunt.id.slice(0, 8)}`}
+                    className={primaryButtonClass('ghost')}
+                  >
+                    share to a story
+                  </ShareStory>
                 )}
                 <PrimaryButton
                   variant="ghost"

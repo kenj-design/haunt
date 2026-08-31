@@ -180,17 +180,16 @@ export function ScreenHeader({
   )
 }
 
-export function PrimaryButton({
-  children,
-  onClick,
-  disabled = false,
-  variant = 'solid',
-}: {
-  children: ReactNode
-  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
-  disabled?: boolean
-  variant?: 'solid' | 'green-outline' | 'ghost'
-}) {
+export type ButtonVariant = 'solid' | 'green-outline' | 'ghost'
+
+/**
+ * How a primary button looks.
+ *
+ * Exported because a couple of controls are buttons in every sense except that
+ * they own their own behaviour — sharing a story image, say — and they should not
+ * have to copy this string to sit in the same stack.
+ */
+export function primaryButtonClass(variant: ButtonVariant = 'solid', disabled = false): string {
   const base =
     'min-h-[52px] w-full rounded-full border px-5 py-3.5 text-center text-[15px] font-semibold transition-[color,background-color,border-color,opacity,box-shadow,transform] duration-200 ease-out'
   const look = disabled
@@ -200,12 +199,26 @@ export function PrimaryButton({
       : variant === 'green-outline'
         ? 'pressable cursor-pointer border-white/[0.16] bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-2xl hover:bg-white/[0.13]'
         : 'pressable cursor-pointer border-transparent bg-transparent text-ink-2 hover:text-white'
+  return `${base} ${look}`
+}
+
+export function PrimaryButton({
+  children,
+  onClick,
+  disabled = false,
+  variant = 'solid',
+}: {
+  children: ReactNode
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
+  disabled?: boolean
+  variant?: ButtonVariant
+}) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`${base} ${look}`}
+      className={primaryButtonClass(variant, disabled)}
     >
       {children}
     </button>

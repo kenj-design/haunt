@@ -122,6 +122,13 @@ Do not rediscover these:
   screen's sticky action dock**, and `position: sticky` makes that dock a
   stacking context — so the dock's `z-index` decides whether the fog covers the
   header. It is 40 for that reason. Lowering it silently breaks the ceremony.
+- **Instagram Stories cannot be reached from a web page**, so do not go looking
+  for the deep link. `instagram-stories://share` needs the image handed over
+  through the iOS pasteboard under Instagram's own UTI keys, and Android needs an
+  `ADD_TO_STORY` intent carrying a bitmap; a browser can do neither. What works is
+  `navigator.share({ files })` with a rendered image — the sheet opens with
+  Instagram in it. That is what `lib/storyCard.ts` does, falling back to a
+  download where file sharing is missing. The native app gets the real thing.
 - **Geolocation is slow and blocking.** Positions are cached for 60s, refusals
   included. Arrival deliberately bypasses the cache — it needs a current fix.
   Do not "simplify" that away.
