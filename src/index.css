@@ -1792,6 +1792,36 @@ audio {
   transform: translateY(-8px) scale(0.96);
 }
 
+/* The same fanned photo stack as the compose slot, standing still: no press or
+   hover response, because there is nothing here to press. */
+.notes-photo-slot-static,
+.notes-photo-slot-static:active,
+.notes-photo-slot-static:hover {
+  transform: none;
+}
+
+/* Photos, full size, on their own ground. */
+.photo-gallery {
+  background: rgba(4, 5, 8, 0.93);
+  backdrop-filter: blur(20px) saturate(1.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.08);
+}
+
+.photo-gallery-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  transition:
+    width 220ms var(--ease-out),
+    background-color 220ms var(--ease-out);
+}
+
+.photo-gallery-dot.is-current {
+  width: 17px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
 /* The confirmation after a haunt is left reads *inside* the shroud rather than
    on a card over it: scrim enough to hold white text, thin enough that the fog
    keeps moving behind the words. */

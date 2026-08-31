@@ -8,6 +8,11 @@
  *
  * The health panel renders only for the finder. That is a courtesy here, not a
  * defence: on the real backend the numbers are simply never sent to anyone else.
+ *
+ * Photos are the same set the finder chose on the way in — up to three — so the
+ * hero opens a gallery rather than pretending the first one is the only one. A
+ * friend of a friend gets none of them; the feed sends an empty list, and this
+ * screen refuses to show any it was handed anyway.
  */
 import { useState } from 'react'
 import {
@@ -17,8 +22,10 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Expand,
   EyeOff,
   Footprints,
+  Images,
   Infinity as InfinityIcon,
   Lock,
   LockKeyhole,
@@ -30,6 +37,7 @@ import {
 import { useApp } from '../context/appState'
 import { Avatar, hauntArtworkStyle, PrimaryButton, ScreenHeader, VibePill } from '../components/ui'
 import { AudioNotePlayer } from '../components/ArrivalNoteComposer'
+import PhotoGallery from '../components/PhotoGallery'
 import { isGroupFounded } from '../domain'
 import type { Haunt } from '../domain'
 
@@ -240,6 +248,9 @@ function ScoreBreakdown({ haunt }: { haunt: Haunt }) {
 
 export default function HauntDetail({ hauntId }: { hauntId: string }) {
   const { haunts, goBack, navigate, arrive, logVisit, user, isBusy } = useApp()
+  // Which photo the gallery is open on, or null for closed. Declared before the
+  // early return below so the hook order survives a haunt going away.
+  const [galleryAt, setGalleryAt] = useState<number | null>(null)
   const haunt = haunts.find((h) => h.id === hauntId)
   if (!haunt) return null
   const isOwn = haunt.finderHandle === user.handle
@@ -251,236 +262,270 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
         ? { icon: Footprints, label: 'wanderers', note: 'anyone nearby may encounter it' }
         : { icon: Users, label: 'your circle', note: 'people you trust may encounter it' }
   const AudienceIcon = audience.icon
+  // Belt and braces: a shrouded haunt's photos never arrive, and are not shown
+  // even if some other backend hands them over.
+  const photos = isFof ? [] : haunt.photoUrls
 
   return (
-    <div className="screen-in no-scrollbar h-full overflow-y-auto pb-10">
-      <ScreenHeader title="" onBack={goBack} />
+    <div className="relative h-full">
+      <div
+        className="screen-in no-scrollbar h-full overflow-y-auto pb-10"
+        /* Nothing behind a fullscreen photo should be reachable through it. */
+        inert={galleryAt !== null}
+      >
+        <ScreenHeader title="" onBack={goBack} />
 
-      {/* hero */}
-      <div className="mx-4 overflow-hidden rounded-[30px] border border-white/[0.12] shadow-[0_24px_58px_rgba(0,0,0,.34)]">
-        <div className="relative flex h-56 flex-col justify-end p-5" style={hauntArtworkStyle(haunt)}>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-          <div className="relative">
-            <h1 className="text-[30px] font-semibold tracking-[-0.045em] text-ink">{isFof ? '???' : haunt.name}</h1>
-            <p className="mt-1 text-[12px] text-ink-2">
-              {isFof ? (
-                'a friend of a friend keeps this one'
-              ) : (
-                <>
-                  found by <span className="font-mono">{haunt.finderHandle}</span>
-                  {haunt.passedByHandle && (
+        {/* hero */}
+        <div className="mx-4 overflow-hidden rounded-[30px] border border-white/[0.12] shadow-[0_24px_58px_rgba(0,0,0,.34)]">
+          <div className="relative flex h-56 flex-col justify-end p-5" style={hauntArtworkStyle(haunt)}>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+            {photos.length > 0 && (
+              <>
+                {/* A transparent cover rather than a wrapping button: the name is a
+                    heading, which has no business inside one. */}
+                <button
+                  type="button"
+                  onClick={() => setGalleryAt(0)}
+                  aria-label={photos.length === 1 ? 'open the photo' : `open all ${photos.length} photos`}
+                  className="absolute inset-0 z-10 cursor-pointer"
+                />
+                <span className="glass-control pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium text-ink">
+                  {photos.length > 1 ? (
                     <>
-                      {' '}· passed by <span className="font-mono">{haunt.passedByHandle}</span>
+                      <Images size={11} strokeWidth={1.7} aria-hidden="true" />
+                      {photos.length}
                     </>
+                  ) : (
+                    <Expand size={11} strokeWidth={1.7} aria-hidden="true" />
                   )}
-                </>
-              )}
-            </p>
+                </span>
+              </>
+            )}
+            <div className="relative">
+              <h1 className="text-[30px] font-semibold tracking-[-0.045em] text-ink">{isFof ? '???' : haunt.name}</h1>
+              <p className="mt-1 text-[12px] text-ink-2">
+                {isFof ? (
+                  'a friend of a friend keeps this one'
+                ) : (
+                  <>
+                    found by <span className="font-mono">{haunt.finderHandle}</span>
+                    {haunt.passedByHandle && (
+                      <>
+                        {' '}· passed by <span className="font-mono">{haunt.passedByHandle}</span>
+                      </>
+                    )}
+                  </>
+                )}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="px-5">
-        {/* tags + lineage */}
-        {!isFof && (
-          <>
-            {(haunt.status === 'visited' || haunt.status === 'arrived') && (
-              <div className="mt-4 flex items-center">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-medium tracking-[-0.01em] backdrop-blur-xl ${
-                    haunt.status === 'visited'
-                      ? 'border-visited/25 bg-visited/[0.09] text-visited'
-                      : 'note-reveal border-unvisited/25 bg-unvisited/[0.09] text-unvisited'
-                  }`}
-                >
-                  {haunt.status === 'visited' ? (
-                    <Check size={11} strokeWidth={2} />
-                  ) : (
-                    <Footprints size={11} strokeWidth={1.8} />
-                  )}
-                  {haunt.status === 'visited' ? 'visited' : 'you made it'}
-                </span>
-              </div>
-            )}
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {haunt.vibeTags.map((t) => (
-                <VibePill key={t} label={t} />
-              ))}
-              {haunt.bestTimeTags.map((t) => (
-                <VibePill key={t} label={t} tone="indigo" />
-              ))}
-            </div>
-            {isOwn && (
-              <div className="premium-card mt-4 flex items-center gap-3 rounded-[22px] px-4 py-3.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.055] text-white/68">
-                  <AudienceIcon size={14} strokeWidth={1.5} />
-                </span>
-                <div>
-                  <p className="text-[11px] font-semibold text-ink">{audience.label}</p>
-                  <p className="mt-0.5 text-[9px] text-ink-3">{audience.note}</p>
-                </div>
-                {haunt.audience !== 'self' && (
-                  <button
-                    type="button"
-                    onClick={() => navigate({ name: 'pass', hauntId: haunt.id })}
-                    className="pressable ml-auto shrink-0 rounded-full border border-white/[0.11] bg-white/[0.06] px-3 py-2 text-[9px] font-semibold text-white/72 transition-colors hover:bg-white/[0.1] hover:text-white"
+        <div className="px-5">
+          {/* tags + lineage */}
+          {!isFof && (
+            <>
+              {(haunt.status === 'visited' || haunt.status === 'arrived') && (
+                <div className="mt-4 flex items-center">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-medium tracking-[-0.01em] backdrop-blur-xl ${
+                      haunt.status === 'visited'
+                        ? 'border-visited/25 bg-visited/[0.09] text-visited'
+                        : 'note-reveal border-unvisited/25 bg-unvisited/[0.09] text-unvisited'
+                    }`}
                   >
-                    pass it →
-                  </button>
-                )}
-              </div>
-            )}
-            {isOwn && haunt.status === 'visited' && haunt.audience === 'self' && (
-              <ShareHauntPanel haunt={haunt} />
-            )}
-            {haunt.lifespan !== 'lasting' && (() => {
-              const detail = LIFESPAN_DETAILS[haunt.lifespan]
-              const LifespanIcon = detail.icon
-              return (
-                <div className="mt-4 flex items-center gap-2.5 px-1 text-[11px] text-ink-3">
-                  <LifespanIcon size={13} strokeWidth={1.5} />
-                  <span>
-                    {detail.label}
-                    {haunt.lifespan === 'dated' && haunt.expiresAt ? ` ${haunt.expiresAt}.` : ''}
+                    {haunt.status === 'visited' ? (
+                      <Check size={11} strokeWidth={2} />
+                    ) : (
+                      <Footprints size={11} strokeWidth={1.8} />
+                    )}
+                    {haunt.status === 'visited' ? 'visited' : 'you made it'}
                   </span>
                 </div>
-              )
-            })()}
-            <button
-              onClick={() => navigate({ name: 'lineage', hauntId: haunt.id })}
-              className="premium-card mt-4 flex w-full pressable cursor-pointer items-center justify-between rounded-[22px] px-4 py-3.5 transition-colors duration-200 hover:bg-white/[0.09]"
-            >
-              <MiniLineage haunt={haunt} />
-              <span className="text-[11px] text-ink-3">the haunting →</span>
-            </button>
-          </>
-        )}
-
-        {haunt.audioUrl && haunt.status !== 'locked' && !isFof && (
-          <div className="premium-card mt-5 rounded-[24px] p-4">
-            <div className="mb-3 flex items-center gap-2 text-[12px] text-ink-2">
-              <Volume2 size={14} strokeWidth={1.5} />
-              <span>Sound kept here</span>
-            </div>
-            <audio src={haunt.audioUrl} controls className="h-9 w-full" aria-label="Sound left at this haunt" />
-          </div>
-        )}
-
-        {/* story */}
-        {isFof ? (
-          <div className="premium-card mt-5 rounded-[26px] p-5 text-center">
-            <Lock size={16} strokeWidth={1.5} className="mx-auto text-ink-3" />
-            <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
-              Somewhere in this zone, a friend of a friend keeps a place. Its story stays
-              locked until it's passed to you.
-            </p>
-          </div>
-        ) : haunt.story ? (
-          <div className="mt-5">
-            <p className="text-[14px] leading-[1.7] text-ink">{haunt.story}</p>
-          </div>
-        ) : null}
-
-        {/* status-specific body */}
-        {haunt.status === 'locked' && !isFof && (
-          <>
-            <div className="glass-panel mt-6 flex items-center gap-3 rounded-[24px] p-4">
-              <Lock size={15} strokeWidth={1.5} className="shrink-0 text-note-ink/70" />
-              <p className="text-[13px] text-note-ink/90">a note waits for you there</p>
-            </div>
-            <div className="mt-6 flex flex-col gap-3">
-              <PrimaryButton
-                variant="green-outline"
-                disabled={isBusy}
-                onClick={() => void arrive(haunt.id)}
-              >
-                mark that I’m here
-              </PrimaryButton>
-              <PrimaryButton disabled>pass this haunt</PrimaryButton>
-              <p className="text-center text-[11px] text-ink-3">
-                you can pass a haunt once you've been
-              </p>
-            </div>
-          </>
-        )}
-
-        {haunt.status === 'arrived' && (
-          <div className="mt-6">
-            {haunt.passerNote && (
-              <div className="fade-in border-l border-unvisited/70 py-1 pl-4">
-                <p className="text-[11px] text-ink-3">
-                  <span className="font-mono">{haunt.passedByHandle ?? haunt.finderHandle}</span> told you
-                </p>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-2 italic">
-                  “{haunt.passerNote}”
-                </p>
+              )}
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {haunt.vibeTags.map((t) => (
+                  <VibePill key={t} label={t} />
+                ))}
+                {haunt.bestTimeTags.map((t) => (
+                  <VibePill key={t} label={t} tone="indigo" />
+                ))}
               </div>
-            )}
-            <div className="glass-panel note-reveal relative mt-5 overflow-hidden rounded-[26px] p-6">
-              <p className="text-[12px] font-medium tracking-[-0.01em] text-note-ink/62">
-                {haunt.finderHandle} left this here
-              </p>
-              <ArrivalNoteContent haunt={haunt} />
-            </div>
-            <div className="mt-6 flex flex-col gap-2">
-              <PrimaryButton
-                variant="green-outline"
-                disabled={isBusy}
-                onClick={() => void logVisit(haunt.id)}
+              {isOwn && (
+                <div className="premium-card mt-4 flex items-center gap-3 rounded-[22px] px-4 py-3.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.055] text-white/68">
+                    <AudienceIcon size={14} strokeWidth={1.5} />
+                  </span>
+                  <div>
+                    <p className="text-[11px] font-semibold text-ink">{audience.label}</p>
+                    <p className="mt-0.5 text-[9px] text-ink-3">{audience.note}</p>
+                  </div>
+                  {haunt.audience !== 'self' && (
+                    <button
+                      type="button"
+                      onClick={() => navigate({ name: 'pass', hauntId: haunt.id })}
+                      className="pressable ml-auto shrink-0 rounded-full border border-white/[0.11] bg-white/[0.06] px-3 py-2 text-[9px] font-semibold text-white/72 transition-colors hover:bg-white/[0.1] hover:text-white"
+                    >
+                      pass it →
+                    </button>
+                  )}
+                </div>
+              )}
+              {isOwn && haunt.status === 'visited' && haunt.audience === 'self' && (
+                <ShareHauntPanel haunt={haunt} />
+              )}
+              {haunt.lifespan !== 'lasting' && (() => {
+                const detail = LIFESPAN_DETAILS[haunt.lifespan]
+                const LifespanIcon = detail.icon
+                return (
+                  <div className="mt-4 flex items-center gap-2.5 px-1 text-[11px] text-ink-3">
+                    <LifespanIcon size={13} strokeWidth={1.5} />
+                    <span>
+                      {detail.label}
+                      {haunt.lifespan === 'dated' && haunt.expiresAt ? ` ${haunt.expiresAt}.` : ''}
+                    </span>
+                  </div>
+                )
+              })()}
+              <button
+                onClick={() => navigate({ name: 'lineage', hauntId: haunt.id })}
+                className="premium-card mt-4 flex w-full pressable cursor-pointer items-center justify-between rounded-[22px] px-4 py-3.5 transition-colors duration-200 hover:bg-white/[0.09]"
               >
-                log this visit
-              </PrimaryButton>
-              <p className="text-center text-[10px] text-ink-3">a small keepsake will be saved to your profile</p>
-              <PrimaryButton variant="ghost" onClick={goBack}>
-                maybe later
-              </PrimaryButton>
-            </div>
-          </div>
-        )}
+                <MiniLineage haunt={haunt} />
+                <span className="text-[11px] text-ink-3">the haunting →</span>
+              </button>
+            </>
+          )}
 
-        {haunt.status === 'visited' && (
-          <div className="mt-6">
-            <div className="glass-panel relative overflow-hidden rounded-[26px] p-6">
-              <p className="text-[12px] font-medium tracking-[-0.01em] text-note-ink/62">
-                {haunt.finderHandle === '???' ? 'the note' : `${haunt.finderHandle} left this here`}
-              </p>
-              <ArrivalNoteContent haunt={haunt} />
-            </div>
-            {isOwn && <ScoreBreakdown haunt={haunt} />}
-            {isGroupFounded(haunt) && (
-              <div className="premium-card mt-4 flex items-center gap-2.5 rounded-[22px] px-4 py-3.5">
-                <Users size={14} strokeWidth={1.5} className="text-ink-3" />
-                <p className="text-[12px] text-ink-2">
-                  founded together by{' '}
-                  <span className="font-mono">{haunt.founders.join(', ')}</span>
-                </p>
+          {haunt.audioUrl && haunt.status !== 'locked' && !isFof && (
+            <div className="premium-card mt-5 rounded-[24px] p-4">
+              <div className="mb-3 flex items-center gap-2 text-[12px] text-ink-2">
+                <Volume2 size={14} strokeWidth={1.5} />
+                <span>Sound kept here</span>
               </div>
-            )}
-            <div className="mt-6 flex flex-col gap-3">
-              {(!isOwn || haunt.audience !== 'self') && (
+              <audio src={haunt.audioUrl} controls className="h-9 w-full" aria-label="Sound left at this haunt" />
+            </div>
+          )}
+
+          {/* story */}
+          {isFof ? (
+            <div className="premium-card mt-5 rounded-[26px] p-5 text-center">
+              <Lock size={16} strokeWidth={1.5} className="mx-auto text-ink-3" />
+              <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
+                Somewhere in this zone, a friend of a friend keeps a place. Its story stays
+                locked until it's passed to you.
+              </p>
+            </div>
+          ) : haunt.story ? (
+            <div className="mt-5">
+              <p className="text-[14px] leading-[1.7] text-ink">{haunt.story}</p>
+            </div>
+          ) : null}
+
+          {/* status-specific body */}
+          {haunt.status === 'locked' && !isFof && (
+            <>
+              <div className="glass-panel mt-6 flex items-center gap-3 rounded-[24px] p-4">
+                <Lock size={15} strokeWidth={1.5} className="shrink-0 text-note-ink/70" />
+                <p className="text-[13px] text-note-ink/90">a note waits for you there</p>
+              </div>
+              <div className="mt-6 flex flex-col gap-3">
                 <PrimaryButton
                   variant="green-outline"
-                  onClick={() => navigate({ name: 'pass', hauntId: haunt.id })}
+                  disabled={isBusy}
+                  onClick={() => void arrive(haunt.id)}
                 >
-                  pass this haunt
+                  mark that I’m here
                 </PrimaryButton>
-              )}
-              <PrimaryButton
-                variant="ghost"
-                onClick={() => navigate({ name: 'lineage', hauntId: haunt.id })}
-              >
-                the haunting
-              </PrimaryButton>
-            </div>
-          </div>
-        )}
+                <PrimaryButton disabled>pass this haunt</PrimaryButton>
+                <p className="text-center text-[11px] text-ink-3">
+                  you can pass a haunt once you've been
+                </p>
+              </div>
+            </>
+          )}
 
-        {isFof && (
-          <div className="mt-6">
-            <PrimaryButton disabled>locked until someone lets you in</PrimaryButton>
-          </div>
-        )}
+          {haunt.status === 'arrived' && (
+            <div className="mt-6">
+              {haunt.passerNote && (
+                <div className="fade-in border-l border-unvisited/70 py-1 pl-4">
+                  <p className="text-[11px] text-ink-3">
+                    <span className="font-mono">{haunt.passedByHandle ?? haunt.finderHandle}</span> told you
+                  </p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-ink-2 italic">
+                    “{haunt.passerNote}”
+                  </p>
+                </div>
+              )}
+              <div className="glass-panel note-reveal relative mt-5 overflow-hidden rounded-[26px] p-6">
+                <p className="text-[12px] font-medium tracking-[-0.01em] text-note-ink/62">
+                  {haunt.finderHandle} left this here
+                </p>
+                <ArrivalNoteContent haunt={haunt} />
+              </div>
+              <div className="mt-6 flex flex-col gap-2">
+                <PrimaryButton
+                  variant="green-outline"
+                  disabled={isBusy}
+                  onClick={() => void logVisit(haunt.id)}
+                >
+                  log this visit
+                </PrimaryButton>
+                <p className="text-center text-[10px] text-ink-3">a small keepsake will be saved to your profile</p>
+                <PrimaryButton variant="ghost" onClick={goBack}>
+                  maybe later
+                </PrimaryButton>
+              </div>
+            </div>
+          )}
+
+          {haunt.status === 'visited' && (
+            <div className="mt-6">
+              <div className="glass-panel relative overflow-hidden rounded-[26px] p-6">
+                <p className="text-[12px] font-medium tracking-[-0.01em] text-note-ink/62">
+                  {haunt.finderHandle === '???' ? 'the note' : `${haunt.finderHandle} left this here`}
+                </p>
+                <ArrivalNoteContent haunt={haunt} />
+              </div>
+              {isOwn && <ScoreBreakdown haunt={haunt} />}
+              {isGroupFounded(haunt) && (
+                <div className="premium-card mt-4 flex items-center gap-2.5 rounded-[22px] px-4 py-3.5">
+                  <Users size={14} strokeWidth={1.5} className="text-ink-3" />
+                  <p className="text-[12px] text-ink-2">
+                    founded together by{' '}
+                    <span className="font-mono">{haunt.founders.join(', ')}</span>
+                  </p>
+                </div>
+              )}
+              <div className="mt-6 flex flex-col gap-3">
+                {(!isOwn || haunt.audience !== 'self') && (
+                  <PrimaryButton
+                    variant="green-outline"
+                    onClick={() => navigate({ name: 'pass', hauntId: haunt.id })}
+                  >
+                    pass this haunt
+                  </PrimaryButton>
+                )}
+                <PrimaryButton
+                  variant="ghost"
+                  onClick={() => navigate({ name: 'lineage', hauntId: haunt.id })}
+                >
+                  the haunting
+                </PrimaryButton>
+              </div>
+            </div>
+          )}
+
+          {isFof && (
+            <div className="mt-6">
+              <PrimaryButton disabled>locked until someone lets you in</PrimaryButton>
+            </div>
+          )}
+        </div>
       </div>
+      {galleryAt !== null && photos.length > 0 && (
+        <PhotoGallery photos={photos} startIndex={galleryAt} onClose={() => setGalleryAt(null)} />
+      )}
     </div>
   )
 }

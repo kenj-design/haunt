@@ -427,6 +427,7 @@ export default function DropHaunt() {
           haunt={dropped}
           canPass={friends.length > 0}
           onMap={goBack}
+          onOpen={() => navigate({ name: 'haunt', hauntId: dropped.id }, { replace: true })}
           onPass={() => navigate({ name: 'pass', hauntId: dropped.id }, { replace: true })}
         />
       )}
@@ -438,27 +439,56 @@ export default function DropHaunt() {
  * What the fog lifts onto.
  *
  * Sits above the shroud instead of replacing it: the place is left, the screen
- * is still under fog, and there are only two things left to do — go back to the
- * map, or hand the place to one person. It renders the haunt the backend handed
- * back rather than looking one up, so it can only ever name a place that really
- * landed.
+ * is still under fog, and what is left to do is hand it to someone, look at it,
+ * or go. It renders the haunt the backend handed back rather than looking one
+ * up, so it can only ever show a place that really landed — photos included,
+ * which is why the fanned stack from the form above reappears here.
  */
 function Aftermath({
   haunt,
   canPass,
   onMap,
+  onOpen,
   onPass,
 }: {
   haunt: Haunt
   canPass: boolean
   onMap: () => void
+  onOpen: () => void
   onPass: () => void
 }) {
+  const photos = haunt.photoUrls
   return (
-    <div className="drop-aftermath absolute inset-0 z-[60] flex flex-col items-center justify-center px-9 text-center">
-      <div className="glass-panel note-reveal flex h-16 w-16 items-center justify-center rounded-full">
-        <MapPin size={22} strokeWidth={1.5} className="text-white" />
-      </div>
+    <div className="drop-aftermath no-scrollbar absolute inset-0 z-[60] flex flex-col items-center justify-center overflow-y-auto px-9 py-8 text-center">
+      {photos.length > 0 ? (
+        <div
+          className="notes-photo-slot notes-photo-slot-static note-reveal"
+          data-count={photos.length}
+          role="img"
+          aria-label={
+            photos.length === 1
+              ? 'the photo you left with this haunt'
+              : `the ${photos.length} photos you left with this haunt`
+          }
+        >
+          <span className="notes-photo-slot-media" aria-hidden="true">
+            {photos.map((url, index) => (
+              <span
+                key={url}
+                className={`notes-photo-thumb notes-photo-thumb-${index + 1}`}
+                style={{
+                  backgroundImage: `linear-gradient(to top,rgba(8,10,15,.25),transparent 64%),url(${url})`,
+                }}
+              />
+            ))}
+          </span>
+        </div>
+      ) : (
+        <div className="glass-panel note-reveal flex h-16 w-16 items-center justify-center rounded-full">
+          <MapPin size={22} strokeWidth={1.5} className="text-white" />
+        </div>
+      )}
+
       <h1 className="mt-7 text-[30px] font-semibold tracking-[-0.045em] text-ink">
         left in the fog
       </h1>
@@ -472,23 +502,24 @@ function Aftermath({
         </p>
       )}
 
-      <div className="mt-10 flex w-full flex-col gap-2">
-        {canPass ? (
-          <>
-            <PrimaryButton onClick={onPass}>pass it on</PrimaryButton>
-            <PrimaryButton variant="ghost" onClick={onMap}>
-              back to the map
-            </PrimaryButton>
-          </>
-        ) : (
-          <>
-            <PrimaryButton onClick={onMap}>back to the map</PrimaryButton>
-            <p className="mt-1 text-[11px] leading-relaxed text-ink-3">
-              you can pass it on once there is someone to pass it to
-            </p>
-          </>
-        )}
+      <div className="mt-9 flex w-full flex-col gap-2">
+        {canPass && <PrimaryButton onClick={onPass}>pass it on</PrimaryButton>}
+        <PrimaryButton variant={canPass ? 'green-outline' : 'solid'} onClick={onOpen}>
+          open it
+        </PrimaryButton>
       </div>
+      <button
+        type="button"
+        onClick={onMap}
+        className="pressable mt-4 cursor-pointer text-[13px] text-ink-3 transition-colors duration-200 hover:text-ink-2"
+      >
+        back to the map
+      </button>
+      {!canPass && (
+        <p className="mt-5 text-[11px] leading-relaxed text-ink-3">
+          you can pass it on once there is someone to pass it to
+        </p>
+      )}
     </div>
   )
 }

@@ -132,7 +132,11 @@ Highest-value target is the security predicates: assert a stranger gets
 and `haunt_feed` withholds the note before arrival.
 
 **4 — Photo upload never exercised.** Bucket, policies, upload code and signed
-URLs all exist; no file has been through them. Could simply be broken.
+URLs all exist; no file has been through them on Supabase — only on the mock
+backend, where photos are object URLs and never leave the browser. The drop
+confirmation and the detail gallery both show photos now, so a broken signing
+path will be obvious rather than invisible. One drop with a photo, on a phone,
+settles it.
 
 **5 — Anonymous signup is an open door.** No CAPTCHA on auth, no cleanup of
 abandoned anonymous accounts. Supabase warns about both.
