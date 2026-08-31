@@ -9,60 +9,43 @@
  * `?onboarding=1` replays this without clearing anything else, for looking at it
  * again without resetting the app.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
   Bell,
   Check,
   Link2,
   MapPin,
-  Search,
   Share2,
   Sparkles,
   UserRoundPlus,
-  UsersRound,
+  X,
 } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { PrimaryButton } from '../components/ui'
 import Stamp from '../components/Stamp'
 
-type PermissionKind = 'contacts' | 'notifications' | 'location'
-type PermissionStatus = 'idle' | 'requesting' | 'granted' | 'denied'
-
-interface InviteContact {
-  id: string
-  name: string
-  handle?: string
-  source: 'haunt' | 'contacts'
-}
-
-interface ContactPickerNavigator extends Navigator {
-  contacts?: {
-    select: (
-      properties: string[],
-      options: { multiple: boolean },
-    ) => Promise<Array<{ name?: string[] }>>
-  }
-}
+type PermissionKind = 'notifications' | 'location'
+/** `unsupported` is not a failure — it is a browser that has no such API. */
+type PermissionStatus = 'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported'
 
 const TOTAL_STEPS = 6
-const SUGGESTED_CONTACTS: InviteContact[] = [
-  { id: 'elisha', name: 'Elisha', handle: '@elisha', source: 'haunt' },
-  { id: 'jordan', name: 'Jordan', handle: '@jordan', source: 'haunt' },
-]
 
+/*
+ * There was a third row here, asking for Contacts through the Contact Picker
+ * API. It is gone, and not because it was hard: the API exists only in Chrome on
+ * Android, and even where it works it hands back names and phone numbers with no
+ * way to turn them into Haunt accounts — this app has no directory to look
+ * anyone up in, by design. So it read an address book and did nothing with it,
+ * while a green tick claimed otherwise on every browser that lacks the API. A
+ * permission that cannot pay for itself should not be asked for.
+ */
 const PERMISSIONS: Array<{
   id: PermissionKind
   title: string
   description: string
-  icon: typeof UsersRound
+  icon: typeof Bell
 }> = [
-  {
-    id: 'contacts',
-    title: 'Contacts',
-    description: 'Find the people you already trust. We never upload your address book.',
-    icon: UsersRound,
-  },
   {
     id: 'notifications',
     title: 'Notifications',
@@ -77,68 +60,92 @@ const PERMISSIONS: Array<{
   },
 ]
 
+/** What the browser already thinks, so the screen doesn't ask twice or lie once. */
+function initialPermissions(): Record<PermissionKind, PermissionStatus> {
+  const notifications: PermissionStatus =
+    typeof Notification === 'undefined'
+      ? 'unsupported'
+      : Notification.permission === 'granted'
+        ? 'granted'
+        : Notification.permission === 'denied'
+          ? 'denied'
+          : 'idle'
+  const location: PermissionStatus =
+    typeof navigator !== 'undefined' && navigator.geolocation ? 'idle' : 'unsupported'
+  return { notifications, location }
+}
+
 export default function Onboarding() {
-  const { completeOnboarding, navigate } = useApp()
+  const { completeOnboarding, navigate, sendFriendRequest } = useApp()
   const [step, setStep] = useState(1)
   const [handle, setHandle] = useState('')
   const [query, setQuery] = useState('')
-  const [requested, setRequested] = useState<string[]>([])
+  /** Handles to ask about, sent for real once this handle is actually claimed. */
+  const [invites, setInvites] = useState<string[]>([])
   const [shareStatus, setShareStatus] = useState('')
-  const [importedContacts, setImportedContacts] = useState<InviteContact[]>([])
-  const [permissions, setPermissions] = useState<Record<PermissionKind, PermissionStatus>>({
-    contacts: 'idle',
-    notifications: 'idle',
-    location: 'idle',
-  })
+  const [permissions, setPermissions] =
+    useState<Record<PermissionKind, PermissionStatus>>(initialPermissions)
 
   const claimed = handle.trim().length >= 3
-  const inviteLink = `https://haunt.place/invite/${handle.trim() || 'friend'}`
-  const contacts = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return [...importedContacts, ...SUGGESTED_CONTACTS].filter((contact) =>
-      `${contact.name} ${contact.handle ?? ''}`.toLowerCase().includes(needle),
-    )
-  }, [importedContacts, query])
+  /*
+   * A link back to this app, not to a domain nobody owns — it used to point at
+   * haunt.place, which does not resolve. `?add=` is read on boot and turned into
+   * a real request to know them; see AppProvider.
+   */
+  const inviteLink = useMemo(() => {
+    const origin = typeof window === 'undefined' ? '' : window.location.origin
+    return `${origin}/?add=${encodeURIComponent(handle.trim() || 'friend')}`
+  }, [handle])
+
+  const askable = PERMISSIONS.filter(
+    (permission) => permissions[permission.id] !== 'unsupported',
+  )
+  const typedHandle = query.trim().replace(/^@/, '').toLowerCase()
+  const canInvite =
+    typedHandle.length >= 3 &&
+    typedHandle !== handle.trim().toLowerCase() &&
+    !invites.includes(typedHandle)
+
+  // A browser can be asked about location without prompting for it.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return
+    let live = true
+    void navigator.permissions
+      .query({ name: 'geolocation' as PermissionName })
+      .then((result) => {
+        if (!live || result.state === 'prompt') return
+        setPermissions((current) => ({
+          ...current,
+          location: result.state === 'granted' ? 'granted' : 'denied',
+        }))
+      })
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [])
 
   const updatePermission = (kind: PermissionKind, status: PermissionStatus) => {
     setPermissions((current) => ({ ...current, [kind]: status }))
   }
 
+  /**
+   * Asks the browser, and reports exactly what it said.
+   *
+   * Nothing here ever reports success for an API that isn't there — a row for a
+   * missing API is not rendered at all, and the old code's habit of ticking
+   * those green was the whole bug.
+   */
   const requestPermission = async (kind: PermissionKind) => {
     updatePermission(kind, 'requesting')
 
     try {
-      if (kind === 'contacts') {
-        const contactsApi = (navigator as ContactPickerNavigator).contacts
-        if (contactsApi?.select) {
-          const selected = await contactsApi.select(['name'], { multiple: true })
-          const imported = selected
-            .map((contact, index) => contact.name?.[0]?.trim() || `Contact ${index + 1}`)
-            .map((name, index) => ({
-              id: `contact-${index}-${name}`,
-              name,
-              source: 'contacts' as const,
-            }))
-          setImportedContacts(imported)
-        }
-        updatePermission(kind, 'granted')
-        return
-      }
-
       if (kind === 'notifications') {
-        if (!('Notification' in window)) {
-          updatePermission(kind, 'granted')
-          return
-        }
         const result = await Notification.requestPermission()
         updatePermission(kind, result === 'granted' ? 'granted' : result === 'denied' ? 'denied' : 'idle')
         return
       }
 
-      if (!navigator.geolocation) {
-        updatePermission(kind, 'granted')
-        return
-      }
       navigator.geolocation.getCurrentPosition(
         () => updatePermission(kind, 'granted'),
         (error) => updatePermission(kind, error.code === error.PERMISSION_DENIED ? 'denied' : 'idle'),
@@ -189,7 +196,14 @@ export default function Onboarding() {
     // Only send someone to the drop screen once the handle is actually theirs;
     // otherwise they'd be leaving a haunt under a name that never landed.
     const handleClaimed = await completeOnboarding('@' + handle.trim())
-    if (handleClaimed && dropFirst) navigate({ name: 'drop' })
+    if (!handleClaimed) return
+    // And only now do the invitations go out, so they arrive from the claimed
+    // name rather than from the placeholder the account was created with. One at
+    // a time: a handle that doesn't exist should say so on its own.
+    for (const invite of invites) {
+      await sendFriendRequest('@' + invite)
+    }
+    if (dropFirst) navigate({ name: 'drop' })
   }
 
   return (
@@ -299,7 +313,7 @@ export default function Onboarding() {
               Everything is optional. Change any of this later.
             </p>
             <div className="onboarding-stagger mt-6 flex flex-col gap-2.5">
-              {PERMISSIONS.map((permission) => (
+              {askable.map((permission) => (
                 <PermissionRow
                   key={permission.id}
                   {...permission}
@@ -307,6 +321,12 @@ export default function Onboarding() {
                   onRequest={() => requestPermission(permission.id)}
                 />
               ))}
+              {askable.length === 0 && (
+                <p className="rounded-[18px] border border-white/[0.08] bg-white/[0.035] px-4 py-5 text-center text-[12px] leading-relaxed text-white/36">
+                  this browser has none of these to give. everything still works —
+                  you will just be asked for your location when it matters.
+                </p>
+              )}
             </div>
             <div className="mt-3 flex items-start gap-2 px-1 text-[11px] leading-[1.45] text-white/38">
               <Sparkles size={13} className="mt-0.5 shrink-0 text-unvisited/70" />
@@ -334,7 +354,8 @@ export default function Onboarding() {
               Bring someone into the fold.
             </h1>
             <p className="mt-3 text-[14px] leading-[1.5] text-white/50">
-              Haunts travel through trust. Invite one person now, or leave the door ajar for later.
+              Haunts travel through trust. Send someone your link, or ask for a handle
+              you already know.
             </p>
 
             <div className="mt-6 grid grid-cols-2 gap-2.5">
@@ -345,41 +366,62 @@ export default function Onboarding() {
               {shareStatus && <p className="fade-in text-[11px] text-visited">{shareStatus}</p>}
             </div>
 
-            <div className="onboarding-field mt-2 flex items-center gap-2.5 rounded-[22px] px-4 py-3.5">
-              <Search size={15} strokeWidth={1.5} className="text-white/36" />
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (!canInvite) return
+                setInvites((current) => [...current, typedHandle])
+                setQuery('')
+              }}
+              className="onboarding-field mt-2 flex items-center gap-2 rounded-[22px] px-4 py-3.5"
+            >
+              <span className="font-mono text-[14px] text-white/38">@</span>
               <input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="search contacts or handles"
+                onChange={(event) =>
+                  setQuery(event.target.value.replace(/[^a-zA-Z0-9._]/g, ''))
+                }
+                aria-label="their handle"
                 autoCapitalize="none"
-                placeholder="search contacts or handles"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="their handle, exactly"
                 className="w-full bg-transparent text-[13px] text-white placeholder:text-white/32"
               />
-            </div>
+              <button
+                type="submit"
+                disabled={!canInvite}
+                aria-label="add this handle"
+                className={`pressable flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${
+                  canInvite
+                    ? 'cursor-pointer border-white/16 bg-white/[0.1] text-white'
+                    : 'cursor-not-allowed border-white/[0.07] bg-white/[0.03] text-white/26'
+                }`}
+              >
+                <UserRoundPlus size={14} strokeWidth={1.7} />
+              </button>
+            </form>
+            <p className="mt-2 px-1 text-[10px] leading-[1.45] text-white/34">
+              Exact handles only. There is no list to browse — which is also why
+              nobody can browse you.
+            </p>
+
             <div className="onboarding-stagger mt-3 flex flex-col gap-2">
-              {contacts.map((contact) => (
-                <ContactRow
-                  key={contact.id}
-                  contact={contact}
-                  added={requested.includes(contact.id)}
-                  onToggle={() =>
-                    setRequested((current) =>
-                      current.includes(contact.id)
-                        ? current.filter((item) => item !== contact.id)
-                        : [...current, contact.id],
-                    )
+              {invites.map((invite) => (
+                <InviteRow
+                  key={invite}
+                  handle={invite}
+                  onRemove={() =>
+                    setInvites((current) => current.filter((item) => item !== invite))
                   }
                 />
               ))}
-              {contacts.length === 0 && (
-                <p className="rounded-[18px] border border-white/[0.08] bg-white/[0.035] px-4 py-5 text-center text-[12px] text-white/36">
-                  no familiar traces found
-                </p>
-              )}
             </div>
             <div className="mt-6">
               <PrimaryButton onClick={() => setStep(6)}>
-                {requested.length > 0 ? `invite ${requested.length} ${requested.length === 1 ? 'friend' : 'friends'}` : 'continue'}
+                {invites.length > 0
+                  ? `ask ${invites.length} ${invites.length === 1 ? 'person' : 'people'}`
+                  : 'continue'}
               </PrimaryButton>
               <button
                 type="button"
@@ -461,7 +503,7 @@ function PermissionRow({
 }: {
   title: string
   description: string
-  icon: typeof UsersRound
+  icon: typeof Bell
   status: PermissionStatus
   onRequest: () => void
 }) {
@@ -517,39 +559,30 @@ function InviteAction({
   )
 }
 
-function ContactRow({
-  contact,
-  added,
-  onToggle,
-}: {
-  contact: InviteContact
-  added: boolean
-  onToggle: () => void
-}) {
+/**
+ * One handle waiting to be asked.
+ *
+ * Nothing has been sent at this point: the requests go out in `finish`, once the
+ * handle doing the asking actually belongs to this account.
+ */
+function InviteRow({ handle, onRemove }: { handle: string; onRemove: () => void }) {
   return (
     <div className="onboarding-contact-row flex items-center gap-3 rounded-[20px] px-3.5 py-3">
       <div className="onboarding-contact-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white/88">
-        {contact.name.charAt(0)}
+        {handle.charAt(0).toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[12px] font-medium text-white/88">{contact.name}</p>
-        <p className="truncate text-[10px] text-white/38">
-          {contact.source === 'haunt' ? `already on Haunt · ${contact.handle}` : 'from your contacts'}
-        </p>
+        <p className="truncate font-mono text-[12px] font-medium text-white/88">@{handle}</p>
+        <p className="truncate text-[10px] text-white/38">asked as soon as you finish here</p>
       </div>
       <button
         type="button"
-        onClick={onToggle}
-        aria-pressed={added}
-        aria-label={`${added ? 'cancel invitation to' : 'invite'} ${contact.name}`}
-        className={`pressable flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[10px] font-semibold transition-[color,background-color,border-color] duration-200 ${
-          added
-            ? 'border-white bg-white text-black'
-            : 'border-white/12 bg-white/[0.055] text-white/64 hover:text-white'
-        }`}
+        onClick={onRemove}
+        aria-label={`don't ask @${handle}`}
+        className="pressable flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.055] px-3 text-[10px] font-semibold text-white/64 transition-colors duration-200 hover:text-white"
       >
-        {added ? <Check size={12} /> : <UserRoundPlus size={12} />}
-        {added ? 'ready' : 'invite'}
+        <X size={12} strokeWidth={2} />
+        remove
       </button>
     </div>
   )

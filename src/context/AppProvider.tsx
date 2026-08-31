@@ -29,6 +29,19 @@ function shouldPreviewOnboarding() {
   return value === '1' || value === 'true'
 }
 
+/**
+ * `?add=handle` — an invite link, opened.
+ *
+ * Onboarding hands out `origin/?add=<their handle>`; whoever follows it asks to
+ * know that person as soon as they have an account of their own. Read once and
+ * then wiped from the URL, so a reload doesn't ask again.
+ */
+function invitedHandle(): string | null {
+  if (typeof window === 'undefined') return null
+  const value = new URLSearchParams(window.location.search).get('add')?.trim()
+  return value ? `@${value.replace(/^@/, '')}` : null
+}
+
 /** `signed-out` is a destination, not a failure: it renders the way in. */
 type BootStatus = 'loading' | 'signed-out' | 'ready' | 'error'
 
@@ -55,6 +68,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const previewOnboarding = useMemo(shouldPreviewOnboarding, [])
+  const invited = useMemo(invitedHandle, [])
+  const invitedSent = useRef(false)
 
   const [status, setStatus] = useState<BootStatus>('loading')
   const [bootError, setBootError] = useState<string | null>(null)
@@ -324,6 +339,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ),
     [mutate, source],
   )
+
+  /**
+   * Answers an invite link, once the person following it has an account and a
+   * handle of their own — before that there is nobody for the request to be from.
+   */
+  useEffect(() => {
+    if (!invited || invitedSent.current) return
+    if (status !== 'ready' || !snapshot?.onboarded) return
+    invitedSent.current = true
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
+    // Following your own link is a no-op rather than an error worth showing.
+    if (invited.toLowerCase() === snapshot.user.handle.toLowerCase()) return
+    void sendFriendRequest(invited)
+  }, [invited, status, snapshot?.onboarded, snapshot?.user.handle, sendFriendRequest])
 
   // --- prompts --------------------------------------------------------------
 

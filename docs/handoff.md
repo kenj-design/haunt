@@ -144,27 +144,37 @@ Highest-value target is the security predicates: assert a stranger gets
 `can_see_haunt = false`, a friend-of-a-friend gets `haunt_is_shrouded = true`,
 and `haunt_feed` withholds the note before arrival.
 
-**4 — Photo upload never exercised.** Bucket, policies, upload code and signed
+**4 — Notifications are asked for and never sent.** Onboarding requests the
+permission for real and the browser really grants it, but nothing in the app
+sends a notification: there is no service worker, no VAPID key pair and no push
+endpoint. It is the last promise in onboarding that the app cannot keep — the
+Contacts row was removed for the same reason and is not worth restoring, since
+the Contact Picker exists only in Chrome on Android and this app has no directory
+to turn a phone number into an account with.
+
+**5 — Photo upload never exercised.** Bucket, policies, upload code and signed
 URLs all exist; no file has been through them on Supabase — only on the mock
 backend, where photos are object URLs and never leave the browser. The drop
 confirmation and the detail gallery both show photos now, so a broken signing
 path will be obvious rather than invisible. One drop with a photo, on a phone,
 settles it.
 
-**5 — Anonymous signup is an open door.** No CAPTCHA on auth, no cleanup of
+**6 — Anonymous signup is an open door.** No CAPTCHA on auth, no cleanup of
 abandoned anonymous accounts. Supabase warns about both.
 
-**6 — `record_proximity` unproven end to end.** It writes `visits.near_at` and is
+**7 — `record_proximity` unproven end to end.** It writes `visits.near_at` and is
 deployed, but the "did you make it?" prompt appearing purely from walking past
 has not been observed — it needs the position controlled *at page load*. Check
 it on a real phone.
 
-**7 — Finish the drop flow.** `single` and `dated` lifespans are modelled and
+**8 — Finish the drop flow.** `single` and `dated` lifespans are modelled and
 enforced but unreachable: `DropHaunt` hardcodes `lasting`. `ImprintControls` and
 `Residue` are built and waiting in `src/components/unwired/` (see its README).
 
-**8 — The tab rail clips profile content.** The floating Map/Profile rail sits at
-vertical centre-left over everything. Cosmetic, pre-existing.
+**9 — The tab rail overlaps profile content.** The floating Map/Profile rail sits
+at vertical centre-left over everything, so profile text scrolls under it. Its
+geometry is fixed now — the glass and the buttons finally agree on a width — but
+where it belongs is still a design decision nobody has made.
 
 Not worth doing: the unwired zone picker. Dropping a haunt where you are standing
 is arguably correct — you leave a place by being at it.

@@ -1444,8 +1444,11 @@ audio {
   -webkit-backdrop-filter: blur(38px) saturate(1.34) contrast(1.02);
 }
 
+/* Width is not a free number: the rail carries 42px items and 4px of padding
+   on each side, so anything under 52 leaves the buttons hanging over the glass.
+   Change one of these three and change all of them. */
 .app-tab-surface {
-  width: 46px;
+  width: 52px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.075), transparent 48%),

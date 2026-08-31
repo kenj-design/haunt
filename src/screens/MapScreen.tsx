@@ -32,7 +32,6 @@ import {
   MAP_MIN_ZOOM,
   MAP_PITCH,
   hauntLatLng,
-  zoneDiameterPx,
 } from '../lib/geo'
 import { MAP_ATTRIBUTION, hauntMapStyle } from '../lib/mapStyle'
 import { stringSeed } from '../lib/seed'
@@ -53,10 +52,29 @@ type SheetDrag = {
   samples: PointerSample[]
 }
 
-type MarkerPosition = { left: number; top: number; size: number }
+/**
+ * Where a zone lands on the glass, and how big it is in each direction.
+ *
+ * Two sizes rather than one, because the camera is pitched: a circle lying on
+ * the ground is an ellipse on screen, squashed vertically, and squashed more the
+ * further back it sits. Measuring the width and height separately makes the fog
+ * read as a footprint on the ground rather than a ball hovering over it.
+ */
+type MarkerPosition = {
+  left: number
+  top: number
+  width: number
+  height: number
+  /** Sideways nudge that keeps a name inside the frame near the edges. */
+  labelShift: number
+}
 
 /** Keeps a zone readable when it is tiny at low zoom or huge at high zoom. */
 const ZONE_PX_BOUNDS = { min: 54, max: 220 }
+/** Metres of latitude per degree. Longitude shrinks with the cosine of it. */
+const METRES_PER_DEGREE = 111320
+/** Room a name needs on either side of its zone before it runs off the frame. */
+const LABEL_HALF_WIDTH = 78
 /** Shroud shapes cycle through this many variants. */
 const SHROUD_VARIANTS = 17
 
@@ -71,7 +89,8 @@ function Zone({
   onOpen: () => void
   position: MarkerPosition
 }) {
-  const size = position.size || 76
+  const width = position.width || 76
+  const height = position.height || 76
   const isFof = haunt.visibility === 'fof' && !isOwn
   const isArrived = haunt.status === 'arrived' && !isFof
   const isVisited = haunt.status === 'visited' && !isFof
@@ -85,7 +104,7 @@ function Zone({
     >
       <div
         className="haunt-zone zone-breathe relative flex items-center justify-center"
-        style={{ width: size, height: size, animationDelay: `${(haunt.zone.x * 37) % 4000}ms` }}
+        style={{ width, height, animationDelay: `${(haunt.zone.x * 37) % 4000}ms` }}
       >
         {isVisited ? (
           <>
@@ -107,7 +126,10 @@ function Zone({
           </div>
         )}
       </div>
-      <div className="map-haunt-label pressable-subtle absolute top-[calc(100%+4px)] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/[0.11] bg-black/72 px-2.5 py-1 text-white/88 shadow-lg backdrop-blur-xl transition-colors duration-200 group-hover:bg-black/90 group-active:bg-black/90">
+      <div
+        className="map-haunt-label pressable-subtle absolute top-[calc(100%+4px)] left-1/2 max-w-[46vw] truncate rounded-full border border-white/[0.11] bg-black/72 px-2.5 py-1 text-white/88 shadow-lg backdrop-blur-xl transition-colors duration-200 group-hover:bg-black/90 group-active:bg-black/90"
+        style={{ transform: `translateX(calc(-50% + ${position.labelShift}px))` }}
+      >
         {isFof ? '???' : haunt.name}
       </div>
     </button>
@@ -144,18 +166,41 @@ export default function MapScreen() {
   syncMarkersRef.current = () => {
     const map = mapRef.current
     if (!map) return
-    const latitude = map.getCenter().lat
-    // `zoneDiameterPx` works in the 256 px-tile zoom scale; MapLibre serves
-    // 512 px tiles, so its zoom is one step coarser for the same ground scale.
-    const zoom = map.getZoom() + 1
+    const width = map.getCanvas().clientWidth
     const next: Record<string, MarkerPosition> = {}
     hauntsRef.current.forEach((haunt) => {
       const [lat, lng] = hauntLatLng(haunt.zone)
       const point = map.project([lng, lat])
+
+      /*
+       * The zone's own footprint, projected. A single metres-per-pixel figure
+       * taken at the map's centre was wrong twice over under a pitched camera:
+       * scale changes across the screen, so a distant haunt drew too large, and
+       * a circle on the ground is never a circle on the glass. Projecting the
+       * north/south and east/west edges instead gives both axes for free, at
+       * this haunt's own place on screen.
+       */
+      const spanLat = haunt.zone.radiusM / METRES_PER_DEGREE
+      const spanLng = spanLat / Math.max(0.01, Math.cos((lat * Math.PI) / 180))
+      const east = map.project([lng + spanLng, lat])
+      const west = map.project([lng - spanLng, lat])
+      const north = map.project([lng, lat + spanLat])
+      const south = map.project([lng, lat - spanLat])
+
+      const clamp = (value: number) =>
+        Math.max(ZONE_PX_BOUNDS.min, Math.min(ZONE_PX_BOUNDS.max, value))
+
+      // A name centred on a zone near the edge hangs off the frame and gets
+      // cut. The zone itself stays put — only the caption slides.
+      const overLeft = Math.max(LABEL_HALF_WIDTH - point.x, 0)
+      const overRight = Math.max(point.x + LABEL_HALF_WIDTH - width, 0)
+
       next[haunt.id] = {
         left: point.x,
         top: point.y,
-        size: zoneDiameterPx(haunt.zone.radiusM, latitude, zoom, ZONE_PX_BOUNDS),
+        width: clamp(Math.hypot(east.x - west.x, east.y - west.y)),
+        height: clamp(Math.hypot(north.x - south.x, north.y - south.y)),
+        labelShift: overLeft - overRight,
       }
     })
     setMarkerPositions(next)
