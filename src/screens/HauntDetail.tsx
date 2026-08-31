@@ -406,7 +406,11 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
                 className="premium-card mt-4 flex w-full pressable cursor-pointer items-center justify-between rounded-[22px] px-4 py-3.5 transition-colors duration-200 hover:bg-white/[0.09]"
               >
                 <MiniLineage haunt={haunt} />
-                <span className="text-[11px] text-ink-3">the haunting →</span>
+                <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-ink-3">
+                  <Footprints size={12} strokeWidth={1.6} aria-hidden="true" />
+                  the haunting
+                  <ArrowRight size={12} strokeWidth={1.7} aria-hidden="true" />
+                </span>
               </button>
             </>
           )}
@@ -538,12 +542,6 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
                     share to a story
                   </ShareStory>
                 )}
-                <PrimaryButton
-                  variant="ghost"
-                  onClick={() => navigate({ name: 'lineage', hauntId: haunt.id })}
-                >
-                  the haunting
-                </PrimaryButton>
               </div>
             </div>
           )}

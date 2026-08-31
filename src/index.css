@@ -2231,6 +2231,58 @@ input[type="range"] {
   }
 }
 
+/*
+ * One vertical rhythm for all six steps: a fixed art zone at the top, copy that
+ * always begins at the same height, and the actions pinned to the bottom. Before
+ * this, every step positioned itself — one justified to the end, one to the
+ * centre, two scrolling — so the eye jumped on every tap and the narrative steps
+ * had a hole in the middle where the art had been pushed away from the words.
+ */
+.onboarding-art {
+  position: relative;
+  display: flex;
+  height: 240px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  /* Two auto margins — this one and the actions' — so the slack on a short step
+     splits above the art and below the copy instead of pooling in one hole
+     under the words. */
+  margin-top: auto;
+  margin-bottom: 24px;
+}
+
+/* The functional steps keep the same system, at a third of the height: a mark
+   rather than a picture, so a form still has room to be a form. */
+.onboarding-art-small {
+  height: 104px;
+  margin-bottom: 18px;
+}
+
+/* Light behind the stamp, so it sits in the dark instead of on top of it — and
+   so the placeholder art's softness reads as atmosphere. */
+.onboarding-art::before {
+  content: '';
+  position: absolute;
+  inset: -14% -6%;
+  background: radial-gradient(
+    ellipse at 50% 46%,
+    rgba(200, 196, 238, 0.1),
+    rgba(140, 150, 180, 0.045) 46%,
+    transparent 68%
+  );
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.onboarding-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 26px;
+}
+
 .onboarding-kicker {
   font-size: 10px;
   font-weight: 650;
