@@ -60,6 +60,7 @@ docs/
   architecture.md   how the layers fit together and why
   supabase.md       standing up the real backend, and what is still unverified
   deploy.md         Supabase + GitHub + Vercel, start to finish
+  illustrations.md  the art the app wants, and the prompt that makes it
 ```
 
 The dependency rule is one-directional: screens know about `domain` and
