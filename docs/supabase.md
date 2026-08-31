@@ -126,7 +126,11 @@ Home Screen, which moves it to storage the seven-day cap does not touch. `main.t
 asks for persistent storage on boot for the same reason.
 
 None of this is recoverable server-side: the recovery code is derived from itself
-and stored nowhere, so eviction without a saved code is account loss.
+and stored nowhere, so eviction without a saved code is account loss. Which is why
+the app is installable — `index.html` carries a manifest and the Apple meta tags,
+so iOS offers a real web app rather than a bookmark, and the recovery screen and
+the profile both say where that button is when the visitor is on iOS and has not
+used it.
 
 ## Visibility, and where it is enforced
 

@@ -2,8 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>haunt</title>
+    <!-- viewport-fit=cover so the safe-area insets the app already respects mean
+         something once this is running full screen from the Home Screen. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Haunt</title>
+    <meta
+      name="description"
+      content="A private map of real places, handed from friend to friend."
+    />
+    <meta name="theme-color" content="#000000" />
+
+    <!--
+      Installability is not decoration here. The whole account is one refresh
+      token in localStorage, and iOS Safari deletes script-writable storage after
+      seven days without a visit — which, since the recovery code is derived and
+      never stored, means account loss. A web app added to the Home Screen gets
+      its own storage container that the seven-day cap does not touch, and these
+      are what make iOS offer that rather than a plain bookmark.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Haunt" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/icon-512.png" />
+    <link rel="icon" type="image/png" href="/icon-512.png" />
   </head>
   <body>
     <div id="root"></div>

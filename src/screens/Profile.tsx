@@ -6,11 +6,12 @@
  * their vibe and how many people you share — and no list of their places. Their
  * haunts reach you by being passed, never by being browsed.
  */
-import { useState } from 'react'
-import { Check, Clock, KeyRound, UserRoundPlus, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Check, Clock, KeyRound, Share, UserRoundPlus, X } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { Avatar, ScreenHeader, VibePill } from '../components/ui'
 import Stamp from '../components/Stamp'
+import { shouldSuggestHomeScreen } from '../lib/install'
 
 function Stat({ value, label }: { value: number; label: string }) {
   return (
@@ -44,6 +45,8 @@ export default function Profile({
     isBusy,
   } = useApp()
   const [askHandle, setAskHandle] = useState('')
+  // Nothing can trigger the install, so this row can only point at the button.
+  const suggestHomeScreen = useMemo(shouldSuggestHomeScreen, [])
   const incoming = friendRequests.filter((request) => request.direction === 'incoming')
   const outgoing = friendRequests.filter((request) => request.direction === 'outgoing')
 
@@ -238,6 +241,21 @@ export default function Profile({
                 </span>
                 <span className="shrink-0 text-[11px] text-ink-3">replace →</span>
               </button>
+
+              {suggestHomeScreen && (
+                <div className="premium-card mt-2 flex items-center gap-3 rounded-[22px] px-4 py-3.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.055] text-white/68">
+                    <Share size={14} strokeWidth={1.5} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium text-ink">Keep this device signed in</p>
+                    <p className="mt-0.5 text-[10px] leading-[1.4] text-ink-3">
+                      Share → Add to Home Screen. Safari forgets a website after a
+                      week away; the Home Screen copy stays signed in.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

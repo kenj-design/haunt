@@ -14,10 +14,11 @@
  * dismisses a banner has not saved anything.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Check, Copy, TriangleAlert } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Check, Copy, Share, TriangleAlert } from 'lucide-react'
 import { PrimaryButton } from '../components/ui'
 import Stamp from '../components/Stamp'
+import { shouldSuggestHomeScreen } from '../lib/install'
 
 type Stage = 'confirm' | 'showing'
 
@@ -39,6 +40,9 @@ export default function SaveRecoveryCode({
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
+  // Said here because this is the one screen where somebody is already thinking
+  // about not losing the account.
+  const suggestHomeScreen = useMemo(shouldSuggestHomeScreen, [])
 
   const generate = useCallback(async () => {
     setBusy(true)
@@ -53,9 +57,22 @@ export default function SaveRecoveryCode({
     }
   }, [createCode])
 
-  // A first code is minted on arrival; a replacement waits to be asked for.
+  const minted = useRef(false)
+
+  /*
+   * A first code is minted on arrival; a replacement waits to be asked for.
+   *
+   * Guarded by a ref because minting is not a read — each call replaces the
+   * account's credentials, so the second one silently kills the code the first
+   * one put on screen. React's development double-invoke of effects was doing
+   * exactly that: two mints, and the person is looking at whichever came back
+   * first. It only surfaced as a visible error because the second attempt
+   * happened to fail.
+   */
   useEffect(() => {
-    if (!replacing) void generate()
+    if (replacing || minted.current) return
+    minted.current = true
+    void generate()
   }, [replacing, generate])
 
   const copy = async () => {
@@ -171,6 +188,18 @@ export default function SaveRecoveryCode({
                 it isn't stored anywhere, which is also why nobody else can find it.
               </span>
             </div>
+
+            {suggestHomeScreen && (
+              <div className="mt-3 flex items-start gap-2.5 px-1 text-[11px] leading-[1.45] text-white/40">
+                <Share size={13} strokeWidth={1.6} className="mt-0.5 shrink-0 text-unvisited/80" />
+                <span>
+                  Then add Haunt to your Home Screen —{' '}
+                  <span className="font-medium text-white/64">Share → Add to Home Screen</span>.
+                  Safari forgets a website you haven't opened for a week; the Home
+                  Screen copy it keeps signed in.
+                </span>
+              </div>
+            )}
 
             {error && <p className="fade-in mt-4 text-center text-[12px] text-fof">{error}</p>}
 
