@@ -1,10 +1,13 @@
 /**
  * The map — the app's home surface, and the only screen most sessions touch.
  *
- * Haunts are drawn as absolutely-positioned React overlays rather than Leaflet
- * markers, because each one is a live WebGL shroud and Leaflet markers only hold
- * static content. The cost is that their positions have to be projected by hand
- * on every map movement, which is what `syncMarkers` does.
+ * The basemap is MapLibre against vector tiles, pitched, with the buildings
+ * extruded — see `lib/mapStyle.ts`. Haunts are drawn as absolutely-positioned
+ * React overlays rather than map markers, because each one is a live WebGL
+ * shroud and a marker only holds static content. The cost is that their
+ * positions have to be projected by hand on every camera movement, which is what
+ * `syncMarkers` does; being overlays, they stand up out of the map rather than
+ * lying flat on it, which suits a haunt being a cloud over a place.
  *
  * Two details worth knowing before changing anything here: the map is not built
  * until its container reports a real size (see the effect below for why), and
@@ -13,24 +16,25 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { Bell, ChevronUp, LocateFixed, MapPin, Minus, Plus, X } from 'lucide-react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { Map as MapLibreMap } from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import { useApp } from '../context/appState'
 import { hauntArtworkStyle } from '../components/ui'
 import HauntShader from '../components/HauntShader'
 import { isHauntActive } from '../domain'
 import type { Haunt } from '../domain'
 import {
+  MAP_BEARING,
   MAP_BOUNDS,
   MAP_CENTER,
   MAP_DEFAULT_ZOOM,
   MAP_MAX_ZOOM,
   MAP_MIN_ZOOM,
-  TILE_ATTRIBUTION,
-  TILE_URL_TEMPLATE,
+  MAP_PITCH,
   hauntLatLng,
   zoneDiameterPx,
 } from '../lib/geo'
+import { MAP_ATTRIBUTION, hauntMapStyle } from '../lib/mapStyle'
 import { stringSeed } from '../lib/seed'
 
 const SHEET_PEEK = 142
@@ -130,21 +134,24 @@ export default function MapScreen() {
   const mappableHaunts = activeHaunts.filter((h) => h.audience !== 'self' || h.finderHandle === user.handle)
 
   // --- native map pan + zoom ---
-  const leafletContainerRef = useRef<HTMLDivElement>(null)
-  const leafletMapRef = useRef<L.Map | null>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
   const hauntsRef = useRef(haunts)
   const syncMarkersRef = useRef<() => void>(() => undefined)
   const [markerPositions, setMarkerPositions] = useState<Record<string, MarkerPosition>>({})
   hauntsRef.current = mappableHaunts
 
   syncMarkersRef.current = () => {
-    const map = leafletMapRef.current
+    const map = mapRef.current
     if (!map) return
     const latitude = map.getCenter().lat
-    const zoom = map.getZoom()
+    // `zoneDiameterPx` works in the 256 px-tile zoom scale; MapLibre serves
+    // 512 px tiles, so its zoom is one step coarser for the same ground scale.
+    const zoom = map.getZoom() + 1
     const next: Record<string, MarkerPosition> = {}
     hauntsRef.current.forEach((haunt) => {
-      const point = map.latLngToContainerPoint(hauntLatLng(haunt.zone))
+      const [lat, lng] = hauntLatLng(haunt.zone)
+      const point = map.project([lng, lat])
       next[haunt.id] = {
         left: point.x,
         top: point.y,
@@ -155,59 +162,63 @@ export default function MapScreen() {
   }
 
   /**
-   * Builds the Leaflet map, but not before the container has a real size.
+   * Builds the map, but not before the container has a real size.
    *
-   * Leaflet fixes its pixel origin when the map is created, and a container
-   * measuring 0×0 at that moment poisons it permanently: tiles lay out around a
-   * zero-sized viewport and no later `invalidateSize` recovers the projection.
-   * That happens whenever the app mounts before layout settles — a background
-   * tab, a collapsed pane, a parent still resolving its height — so creation
-   * waits for the first non-zero measurement instead of assuming one.
+   * A map created against a 0×0 container starts with a broken idea of its own
+   * viewport, and overlay positions projected from it land nowhere. That happens
+   * whenever the app mounts before layout settles — a background tab, a
+   * collapsed pane, a parent still resolving its height — so creation waits for
+   * the first non-zero measurement instead of assuming one.
    */
   useEffect(() => {
-    const container = leafletContainerRef.current
+    const container = mapContainerRef.current
     if (!container) return
 
-    const MAP_EVENTS = 'move zoom moveend zoomend resize'
     const sync = () => syncMarkersRef.current()
-    let map: L.Map | null = null
+    let map: MapLibreMap | null = null
 
     const createMap = () => {
-      map = L.map(container, {
-        center: MAP_CENTER,
-        zoom: MAP_DEFAULT_ZOOM,
-        minZoom: MAP_MIN_ZOOM,
-        maxZoom: MAP_MAX_ZOOM,
-        zoomControl: false,
+      map = new MapLibreMap({
+        container,
+        style: hauntMapStyle(),
+        // MapLibre takes longitude first, and counts zoom one step coarser than
+        // the 256 px-tile scale the rest of the app is written in.
+        center: [MAP_CENTER[1], MAP_CENTER[0]],
+        zoom: MAP_DEFAULT_ZOOM - 1,
+        minZoom: MAP_MIN_ZOOM - 1,
+        maxZoom: MAP_MAX_ZOOM - 1,
+        pitch: MAP_PITCH,
+        bearing: MAP_BEARING,
+        maxBounds: [
+          [MAP_BOUNDS[0][1], MAP_BOUNDS[0][0]],
+          [MAP_BOUNDS[1][1], MAP_BOUNDS[1][0]],
+        ],
         attributionControl: false,
-        dragging: true,
-        touchZoom: true,
-        scrollWheelZoom: true,
-        doubleClickZoom: true,
-        keyboard: true,
-        boxZoom: false,
-        inertia: true,
-        inertiaDeceleration: 3400,
-        inertiaMaxSpeed: 480,
-        maxBounds: L.latLngBounds(MAP_BOUNDS),
-        maxBoundsViscosity: 0.85,
-        zoomAnimation: true,
-        fadeAnimation: true,
-        markerZoomAnimation: false,
-        zoomSnap: 0.5,
-        zoomDelta: 0.5,
-        wheelPxPerZoomLevel: 70,
+        // The pitch is the point of the style, so let it be adjusted, but never
+        // past the horizon: beyond ~60° the sky would need something in it.
+        maxPitch: 62,
+        dragRotate: true,
+        touchPitch: true,
+        pitchWithRotate: true,
+        // Nothing here reads or writes a location hash.
+        hash: false,
+        fadeDuration: 220,
       })
 
-      L.tileLayer(TILE_URL_TEMPLATE, {
-        minZoom: MAP_MIN_ZOOM,
-        maxZoom: MAP_MAX_ZOOM,
-        crossOrigin: true,
-        attribution: TILE_ATTRIBUTION,
-      }).addTo(map)
+      // A basemap that fails leaves a black screen and no clue, so say so.
+      map.on('error', (event) => {
+        const message = event.error?.message ?? String(event)
+        console.error('[map]', message)
+        if (import.meta.env.DEV) Object.assign(window, { __mapError: message })
+      })
+      if (import.meta.env.DEV) Object.assign(window, { __map: map })
 
-      leafletMapRef.current = map
-      map.on(MAP_EVENTS, sync)
+      mapRef.current = map
+      // `move` covers pan, zoom, rotate and pitch, and fires per frame while any
+      // of them is animating, which is exactly when the overlays have to keep up.
+      map.on('move', sync)
+      map.on('resize', sync)
+      map.once('load', sync)
       sync()
     }
 
@@ -219,7 +230,7 @@ export default function MapScreen() {
         createMap()
         return
       }
-      map.invalidateSize({ pan: false })
+      map.resize()
       sync()
     })
     observer.observe(container)
@@ -228,9 +239,10 @@ export default function MapScreen() {
 
     return () => {
       observer.disconnect()
-      map?.off(MAP_EVENTS, sync)
+      map?.off('move', sync)
+      map?.off('resize', sync)
       map?.remove()
-      leafletMapRef.current = null
+      mapRef.current = null
     }
   }, [])
 
@@ -239,14 +251,21 @@ export default function MapScreen() {
   }, [haunts, user.handle])
 
   const zoomMap = (direction: 1 | -1) => {
-    const map = leafletMapRef.current
+    const map = mapRef.current
     if (!map) return
-    if (direction > 0) map.zoomIn(1, { animate: true })
-    else map.zoomOut(1, { animate: true })
+    if (direction > 0) map.zoomIn({ duration: 320 })
+    else map.zoomOut({ duration: 320 })
   }
 
+  /** Back to the city, and back to the angle the map is meant to be seen at. */
   const recenterMap = () => {
-    leafletMapRef.current?.flyTo(MAP_CENTER, MAP_DEFAULT_ZOOM, { duration: 0.7 })
+    mapRef.current?.flyTo({
+      center: [MAP_CENTER[1], MAP_CENTER[0]],
+      zoom: MAP_DEFAULT_ZOOM - 1,
+      pitch: MAP_PITCH,
+      bearing: MAP_BEARING,
+      duration: 760,
+    })
   }
 
   // --- bottom-sheet drag ---
@@ -361,11 +380,17 @@ export default function MapScreen() {
     // no entrance animation: the map is the home surface, seen constantly
     <div className="relative h-full overflow-hidden">
       <div
-        ref={leafletContainerRef}
-        className="haunt-leaflet-map absolute inset-0 z-0"
+        ref={mapContainerRef}
+        /* h-full w-full as well as inset-0: MapLibre's own stylesheet sets
+           position: relative on its container, which beats Tailwind's absolute
+           and would leave inset-0 doing nothing at all. */
+        className="haunt-map absolute inset-0 z-0 h-full w-full"
         aria-label="Dumaguete City map. Drag to explore and pinch to zoom."
       />
-      <div className="pointer-events-none absolute inset-0 bg-black/24" />
+      {/* A whisper of a scrim. The old one was 24% black, to tame bright satellite
+          imagery; the basemap is ours and already dark, so this only has to keep
+          the horizon from competing with the labels. */}
+      <div className="pointer-events-none absolute inset-0 bg-black/10" />
       {mappableHaunts.map((h) => {
         const position = markerPositions[h.id]
         return position ? (
@@ -393,7 +418,7 @@ export default function MapScreen() {
         ) : null
       })()}
       <p className="pointer-events-none absolute right-3 bottom-[148px] z-10 text-[8px] tracking-wide text-white/45">
-        Imagery © Esri · Dumaguete City
+        {MAP_ATTRIBUTION} · Dumaguete City
       </p>
 
       {/* top bar */}

@@ -4,8 +4,25 @@
     {
       "name": "haunt",
       "runtimeExecutable": "/Users/kenanaiahjo/.local/node/bin/node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5173", "--strictPort"],
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
       "port": 5173
+    },
+    {
+      "name": "haunt-build",
+      "runtimeExecutable": "/Users/kenanaiahjo/.local/node/bin/node",
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "preview",
+        "--port",
+        "4173",
+        "--strictPort"
+      ],
+      "port": 4173
     }
   ]
 }

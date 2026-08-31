@@ -10,7 +10,13 @@
 
 import type { HauntZone } from '../domain'
 
-/** Esri World Imagery. Free for development; check licensing before shipping. */
+/**
+ * Esri World Imagery, still used for the *still* pictures — the zone thumbnail on
+ * the drop screen and the stand-in artwork for a haunt with no photo. The live
+ * map is vector tiles now; see `lib/mapStyle.ts`.
+ *
+ * Free for development; check licensing before shipping.
+ */
 export const TILE_URL_TEMPLATE =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 
@@ -18,14 +24,45 @@ export const TILE_ATTRIBUTION = 'Tiles © Esri'
 
 /** The prototype is set in Dumaguete City, Philippines. */
 export const MAP_CENTER: [number, number] = [9.3015, 123.3054]
-export const MAP_DEFAULT_ZOOM = 14
+
+/*
+ * Zoom levels are in the 256 px-tile scale — the one `metresPerPixel` below is
+ * written in. MapLibre serves 512 px tiles and so counts one step coarser for
+ * the same ground scale, which is why the map screen subtracts one on the way in
+ * and adds one on the way back out. Convert at that boundary and nowhere else.
+ */
+/*
+ * The default sits closer than it used to. The vector tiles carry no buildings
+ * below their own z14, so at the old city-wide framing there was nothing to
+ * extrude and the map read as a street plan; this lands on a neighbourhood, with
+ * volume in it and several haunts still in frame.
+ */
+export const MAP_DEFAULT_ZOOM = 16
 export const MAP_MIN_ZOOM = 12
 export const MAP_MAX_ZOOM = 19
 
-/** Panning is fenced to the city so the faked projection stays plausible. */
+/**
+ * How far the camera leans, and which way it faces.
+ *
+ * Flat-on, extruded buildings show only their roofs and the city reads as a
+ * street plan. A lean puts walls on screen, which is the whole reason for
+ * extruding them. The bearing is a few degrees off north so the grid doesn't
+ * line up with the screen edges and look like a diagram.
+ */
+export const MAP_PITCH = 47
+export const MAP_BEARING = -16
+
+/**
+ * Panning is fenced to the region so the faked projection stays plausible.
+ *
+ * Wider than the city itself on purpose: a tight fence combined with a pitched
+ * camera silently forces a minimum zoom, because MapLibre keeps the bounds
+ * covering a viewport that a lean makes much deeper. The framing below should be
+ * a decision, not a side effect of this.
+ */
 export const MAP_BOUNDS: [[number, number], [number, number]] = [
-  [9.15, 123.15],
-  [9.45, 123.45],
+  [8.95, 122.95],
+  [9.65, 123.65],
 ]
 
 /** Anchor of the zone plane: where `x: 0, y: 0` lands. */
@@ -76,7 +113,11 @@ export function nudgeZone(zone: PlanePoint, deltaX: number, deltaY: number): Pla
 /** Earth's circumference at the equator, in metres. */
 const EQUATORIAL_CIRCUMFERENCE_M = 40075016.686
 
-/** Ground resolution of a 256 px web-mercator tile at a given latitude and zoom. */
+/**
+ * Ground resolution of a 256 px web-mercator tile at a given latitude and zoom.
+ *
+ * A caller holding a MapLibre camera passes `map.getZoom() + 1`.
+ */
 export function metresPerPixel(latitudeDegrees: number, zoom: number): number {
   const radians = (latitudeDegrees * Math.PI) / 180
   return (EQUATORIAL_CIRCUMFERENCE_M * Math.cos(radians)) / Math.pow(2, zoom + 8)

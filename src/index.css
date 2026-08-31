@@ -1852,17 +1852,21 @@ audio {
   }
 }
 
-.haunt-leaflet-map {
-  background: #050607;
+/* The basemap is already dark and already ours, so nothing here corrects it —
+   contrast that used to be filtered out of satellite imagery is now simply not
+   in the style. See lib/mapStyle.ts. */
+.haunt-map {
+  background: #04060a;
   font-family: var(--font-sans);
   touch-action: none;
 }
 
-.haunt-leaflet-map .leaflet-tile-pane {
-  filter: brightness(0.56) contrast(1.2) saturate(0.68);
+.haunt-map canvas {
+  outline: none;
 }
 
-.haunt-leaflet-map .leaflet-control-container {
+/* MapLibre's own furniture, none of which this app uses. */
+.haunt-map .maplibregl-control-container {
   display: none;
 }
 

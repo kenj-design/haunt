@@ -41,6 +41,10 @@ Two things worth knowing while poking at it:
 - **`?onboarding=1`** replays the intro without clearing anything else.
 - **`window.haunt.reset()`** in the browser console wipes the prototype's data
   and reloads from the fixtures. Development only.
+- **`window.__map`** is the live MapLibre instance, for asking the basemap what
+  it thinks it is doing (`isStyleLoaded()`, `querySourceFeatures(…)`). Also
+  development only, and the reason a silent basemap failure took ten minutes to
+  find rather than an afternoon.
 
 ## What is where
 

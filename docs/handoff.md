@@ -105,6 +105,14 @@ Do not rediscover these:
 - **Leaflet fixes its pixel origin at creation.** A container measuring 0×0 at
   that moment poisons the projection permanently and no later `invalidateSize`
   recovers it. Both map components wait for a non-zero measurement; keep that.
+- **Do not upgrade `maplibre-gl` past 5.x without checking the map still draws.**
+  6.x derives its tile-parsing worker's URL at runtime from `import.meta.url`
+  plus a filename it builds by string concatenation, which no bundler can follow:
+  nothing gets emitted, the worker never starts, and the failure is completely
+  silent — the map paints its background, requests no tiles, logs no error, and
+  `isStyleLoaded()` just stays false forever. 5.x inlines the worker as a blob
+  and works anywhere. `window.__map` in dev is how you tell that apart from a
+  style bug: check `isStyleLoaded()` and `querySourceFeatures('basemap', …)`.
 - **The fog that engulfs the screen on release is a canvas inside the drop
   screen's sticky action dock**, and `position: sticky` makes that dock a
   stacking context — so the dock's `z-index` decides whether the fog covers the

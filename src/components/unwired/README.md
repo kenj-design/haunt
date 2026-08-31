@@ -10,7 +10,7 @@ row from this table.
 
 | Component | What it does | What it needs to ship |
 | --- | --- | --- |
-| `DumaguetePickerMap.tsx` | Full Leaflet map for choosing a haunt's zone: drag, tap-to-place, pinch/wheel zoom, arrow-key nudging, live radius projection. | Drop a Haunt currently fixes the zone at `{ x: 44, y: 44 }` and shows a static tile. Wire this in to let people place it, then feed the result to `dropHaunt`. |
+| `DumaguetePickerMap.tsx` | Full Leaflet map for choosing a haunt's zone: drag, tap-to-place, pinch/wheel zoom, arrow-key nudging, live radius projection. | Drop a Haunt currently fixes the zone at `{ x: 44, y: 44 }` and shows a static tile. Wire this in to let people place it, then feed the result to `dropHaunt`. **It is also the last thing here still on Leaflet** — the live map moved to MapLibre and vector tiles, so wiring this up means porting it (`map.project` for `latLngToContainerPoint`, and its zoom is one step off MapLibre's) or the app ships two map engines. |
 | `ImprintControls.tsx` | Picks a haunt's shroud temperament and lifespan (`lasting` / `single` / `dated`). | Both fields exist on `Haunt` and are honoured by `isHauntActive` and the shader, but Drop a Haunt hardcodes `lifespan: 'lasting'` and a seeded temperament. |
 | `Residue.tsx` | Leaving and displaying visitor traces — a coloured mark placed in the haunt's field. | `Haunt.residues` is modelled and always empty. Needs a `leaveResidue` action on the data layer and a slot on Haunt Detail. |
 | `SigilDraw.tsx` | Freehand sigil capture, normalized to 0–1 so it replays at any size. | `Haunt.sigilPath` and `Keepsake.sigilPath` are modelled. Intended for the keepsake a visit produces. |
