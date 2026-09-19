@@ -37,7 +37,8 @@ import {
 import { MAP_ATTRIBUTION, hauntMapStyle } from '../lib/mapStyle'
 import { stringSeed } from '../lib/seed'
 
-const SHEET_PEEK = 188
+/** The collapsed rail shows only the handle, title, and count. */
+const SHEET_PEEK = 112
 const OVERSCROLL_FRICTION = 0.32
 const FLICK_VELOCITY = 0.45 // px/ms; recent finger velocity, not whole-gesture average
 const VELOCITY_WINDOW = 100 // ms
@@ -559,8 +560,6 @@ export default function MapScreen() {
       (h.audience !== 'self' || h.finderHandle === user.handle) &&
       (h.visibility === 'friend' || h.finderHandle === user.handle),
   )
-  const featured = visible[0]
-
   return (
     // no entrance animation: the map is the home surface, seen constantly
     <div className="relative h-full overflow-hidden">
@@ -729,8 +728,8 @@ export default function MapScreen() {
           sheetOpen || dragY !== null ? 'z-40' : 'z-20'
         } ${
           dragY === null
-            ? `transition-transform duration-450 [transition-timing-function:var(--ease-drawer)] ${
-                sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-188px)]'
+              ? `transition-transform duration-450 [transition-timing-function:var(--ease-drawer)] ${
+                sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-112px)]'
               }`
             : ''
         }`}
@@ -769,44 +768,6 @@ export default function MapScreen() {
             )}
           </div>
         </button>
-        {featured && !sheetOpen && (
-          <button
-            type="button"
-            onClick={() => navigate({ name: 'haunt', hauntId: featured.id })}
-            className="map-sheet-featured pressable mx-3 mb-2 flex items-center gap-3 rounded-[20px] px-3 py-2.5 text-left"
-          >
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-white/[0.13]"
-              style={hauntArtworkStyle(featured)}
-            >
-              <MapPin
-                size={15}
-                strokeWidth={1.55}
-                color={
-                  featured.status === 'visited'
-                    ? '#b7d2c6'
-                    : featured.visibility === 'fof'
-                      ? '#dfbea4'
-                      : '#c8c4ee'
-                }
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-white/42">
-                sealed nearby
-              </p>
-              <p className="mt-0.5 truncate text-[14px] font-semibold tracking-[-0.02em] text-white/92">
-                {featured.name}
-              </p>
-              <p className="mt-0.5 truncate text-[10px] text-white/45">
-                from <span className="font-mono">{featured.finderHandle}</span>
-                <span className="px-1.5 text-white/22">·</span>
-                {featured.distanceLabel}
-              </p>
-            </div>
-            <ChevronUp size={14} strokeWidth={1.6} className="-rotate-90 shrink-0 text-white/36" />
-          </button>
-        )}
         <div
           id="nearby-haunts"
           className={`no-scrollbar h-full overflow-y-auto px-3 pt-1 pb-36 transition-opacity duration-200 [transition-timing-function:var(--ease-out)] ${sheetOpen || dragY !== null ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
