@@ -191,20 +191,20 @@ button:focus-visible {
   opacity: 1;
   transform-origin: center;
   will-change: transform;
-  animation: vibe-mesh-drift 5.5s var(--ease-in-out) infinite alternate;
+  animation: vibe-mesh-drift calc(7.2s + var(--vibe-phase) * 0.4s) var(--ease-in-out) infinite alternate;
   animation-delay: calc(-1.375s * var(--vibe-phase));
   transition: opacity 200ms ease, transform 200ms ease;
 }
 
 @keyframes vibe-mesh-drift {
   0% {
-    transform: translate3d(-5%, -3%, 0) rotate(-8deg) scale(1.02);
+    transform: translate3d(-7%, -4%, 0) rotate(-10deg) scale(1.03);
   }
   50% {
-    transform: translate3d(3%, 5%, 0) rotate(2deg) scale(1.08);
+    transform: translate3d(4%, 6%, 0) rotate(3deg) scale(1.11);
   }
   100% {
-    transform: translate3d(6%, -4%, 0) rotate(9deg) scale(1.03);
+    transform: translate3d(8%, -5%, 0) rotate(11deg) scale(1.05);
   }
 }
 

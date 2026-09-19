@@ -123,6 +123,136 @@ export function metresPerPixel(latitudeDegrees: number, zoom: number): number {
   return (EQUATORIAL_CIRCUMFERENCE_M * Math.cos(radians)) / Math.pow(2, zoom + 8)
 }
 
+/**
+ * WGS84 direct geodesic calculation.
+ *
+ * This answers the useful map question precisely: starting at this latitude
+ * and longitude, where do we land after travelling `distanceM` metres on a
+ * given bearing? A spherical approximation is close at city scale, but this
+ * keeps the radius honest on the ellipsoid used by PostGIS geography.
+ */
+function wgs84Destination(
+  latitude: number,
+  longitude: number,
+  bearing: number,
+  distanceM: number,
+): [number, number] {
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180
+  const toDegrees = (radians: number) => (radians * 180) / Math.PI
+  const normalizeLongitude = (degrees: number) => ((degrees + 540) % 360) - 180
+
+  const a = 6378137
+  const f = 1 / 298.257223563
+  const b = (1 - f) * a
+  const phi1 = toRadians(latitude)
+  const lambda1 = toRadians(longitude)
+  const alpha1 = toRadians(bearing)
+  const sinAlpha1 = Math.sin(alpha1)
+  const cosAlpha1 = Math.cos(alpha1)
+  const tanU1 = (1 - f) * Math.tan(phi1)
+  const cosU1 = 1 / Math.sqrt(1 + tanU1 * tanU1)
+  const sinU1 = tanU1 * cosU1
+  const sigma1 = Math.atan2(tanU1, cosAlpha1)
+  const sinAlpha = cosU1 * sinAlpha1
+  const cosSqAlpha = 1 - sinAlpha * sinAlpha
+  const uSq = (cosSqAlpha * (a * a - b * b)) / (b * b)
+  const coefficientA = 1 + (uSq / 16384) * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)))
+  const coefficientB =
+    (uSq / 1024) * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)))
+
+  const baseSigma = distanceM / (b * coefficientA)
+  let sigma = baseSigma
+  let previousSigma = Number.POSITIVE_INFINITY
+  let sinSigma = 0
+  let cosSigma = 1
+  let cosTwoSigmaM = 0
+
+  // Vincenty's iteration converges quickly for the short city-scale radii
+  // Haunt uses. The cap keeps malformed input from blocking map rendering.
+  for (let iteration = 0; iteration < 32 && Math.abs(sigma - previousSigma) > 1e-12; iteration += 1) {
+    cosTwoSigmaM = Math.cos(2 * sigma1 + sigma)
+    sinSigma = Math.sin(sigma)
+    cosSigma = Math.cos(sigma)
+    const deltaSigma =
+      coefficientB *
+      sinSigma *
+      (cosTwoSigmaM +
+        (coefficientB / 4) *
+          (cosSigma * (-1 + 2 * cosTwoSigmaM * cosTwoSigmaM) -
+            (coefficientB / 6) *
+              cosTwoSigmaM *
+                (-3 + 4 * sinSigma * sinSigma) *
+                (-3 + 4 * cosTwoSigmaM * cosTwoSigmaM)))
+    previousSigma = sigma
+    sigma = baseSigma + deltaSigma
+  }
+
+  // A spherical fallback is safer than returning NaN if an unexpected
+  // antipodal input ever prevents the ellipsoidal iteration from converging.
+  if (!Number.isFinite(sigma) || !Number.isFinite(sinSigma) || Math.abs(sigma - previousSigma) > 1e-10) {
+    const angularDistance = distanceM / 6371008.8
+    const fallbackLatitude = Math.asin(
+      Math.sin(phi1) * Math.cos(angularDistance) +
+        Math.cos(phi1) * Math.sin(angularDistance) * cosAlpha1,
+    )
+    const fallbackLongitude =
+      lambda1 +
+      Math.atan2(
+        sinAlpha1 * Math.sin(angularDistance) * Math.cos(phi1),
+        Math.cos(angularDistance) - Math.sin(phi1) * Math.sin(fallbackLatitude),
+      )
+    return [toDegrees(fallbackLatitude), normalizeLongitude(toDegrees(fallbackLongitude))]
+  }
+
+  const temporary = sinU1 * sinSigma - cosU1 * cosSigma * cosAlpha1
+  const phi2 = Math.atan2(
+    sinU1 * cosSigma + cosU1 * sinSigma * cosAlpha1,
+    (1 - f) * Math.sqrt(sinAlpha * sinAlpha + temporary * temporary),
+  )
+  const lambda = Math.atan2(
+    sinSigma * sinAlpha1,
+    cosU1 * cosSigma - sinU1 * sinSigma * cosAlpha1,
+  )
+  const coefficientC = (f / 16) * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha))
+  const longitudeCorrection =
+    lambda -
+    (1 - coefficientC) *
+      f *
+      sinAlpha *
+      (sigma +
+        coefficientC *
+          sinSigma *
+          (cosTwoSigmaM + coefficientC * cosSigma * (-1 + 2 * cosTwoSigmaM * cosTwoSigmaM)))
+
+  return [toDegrees(phi2), normalizeLongitude(toDegrees(lambda1 + longitudeCorrection))]
+}
+
+/**
+ * Returns a closed WGS84 geodesic circle in MapLibre's [longitude, latitude]
+ * coordinate order. The polygon follows the actual radius instead of a
+ * screen-space ellipse or a four-point approximation.
+ */
+export function geodesicCircle(
+  center: [number, number],
+  radiusM: number,
+  segments = 128,
+): [number, number][][] {
+  const [latitude, longitude] = center
+  const safeRadius = Math.max(0, Number.isFinite(radiusM) ? radiusM : 0)
+  const safeSegments = Math.max(32, Math.floor(segments))
+  const ring = Array.from({ length: safeSegments }, (_, index) => {
+    const [nextLatitude, nextLongitude] = wgs84Destination(
+      latitude,
+      longitude,
+      (index / safeSegments) * 360,
+      safeRadius,
+    )
+    return [nextLongitude, nextLatitude] as [number, number]
+  })
+  ring.push(ring[0])
+  return [ring]
+}
+
 /** Renders a zone's diameter in screen pixels, clamped to stay legible. */
 export function zoneDiameterPx(
   radiusM: number,

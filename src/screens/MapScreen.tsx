@@ -31,6 +31,7 @@ import {
   MAP_MAX_ZOOM,
   MAP_MIN_ZOOM,
   MAP_PITCH,
+  geodesicCircle,
   hauntLatLng,
 } from '../lib/geo'
 import { MAP_ATTRIBUTION, hauntMapStyle } from '../lib/mapStyle'
@@ -69,10 +70,6 @@ type MarkerPosition = {
   labelShift: number
 }
 
-/** Keeps a zone readable when it is tiny at low zoom or huge at high zoom. */
-const ZONE_PX_BOUNDS = { min: 54, max: 220 }
-/** Metres of latitude per degree. Longitude shrinks with the cosine of it. */
-const METRES_PER_DEGREE = 111320
 /** Room a name needs on either side of its zone before it runs off the frame. */
 const LABEL_HALF_WIDTH = 78
 /** A restrained echo of the map's bearing, keeping captions subtly grounded. */
@@ -202,33 +199,33 @@ export default function MapScreen() {
       if (!isVisible) return
 
       /*
-       * The zone's own footprint, projected. A single metres-per-pixel figure
-       * taken at the map's centre was wrong twice over under a pitched camera:
-       * scale changes across the screen, so a distant haunt drew too large, and
-       * a circle on the ground is never a circle on the glass. Projecting the
-       * north/south and east/west edges instead gives both axes for free, at
-       * this haunt's own place on screen.
+       * Project the actual WGS84 radius, not four degree-offset points. The
+       * full ring matters under pitch and bearing: perspective changes scale
+       * across the footprint, and the projected north/south extremes are not
+       * perfectly symmetric around the projected centre. The fog gets the
+       * exact visible bounds without a readability clamp changing its size.
        */
-      const spanLat = haunt.zone.radiusM / METRES_PER_DEGREE
-      const spanLng = spanLat / Math.max(0.01, Math.cos((lat * Math.PI) / 180))
-      const east = map.project([lng + spanLng, lat])
-      const west = map.project([lng - spanLng, lat])
-      const north = map.project([lng, lat + spanLat])
-      const south = map.project([lng, lat - spanLat])
-
-      const clamp = (value: number) =>
-        Math.max(ZONE_PX_BOUNDS.min, Math.min(ZONE_PX_BOUNDS.max, value))
+      const footprint = geodesicCircle([lat, lng], haunt.zone.radiusM, 64)[0]
+      const projectedFootprint = footprint.map(([footprintLng, footprintLat]) =>
+        map.project([footprintLng, footprintLat]),
+      )
+      const minX = Math.min(...projectedFootprint.map((candidate) => candidate.x))
+      const maxX = Math.max(...projectedFootprint.map((candidate) => candidate.x))
+      const minY = Math.min(...projectedFootprint.map((candidate) => candidate.y))
+      const maxY = Math.max(...projectedFootprint.map((candidate) => candidate.y))
+      const footprintCenterX = (minX + maxX) / 2
+      const footprintCenterY = (minY + maxY) / 2
 
       // A name centred on a zone near the edge hangs off the frame and gets
       // cut. The zone itself stays put — only the caption slides.
-      const overLeft = Math.max(LABEL_HALF_WIDTH - point.x, 0)
-      const overRight = Math.max(point.x + LABEL_HALF_WIDTH - width, 0)
+      const overLeft = Math.max(LABEL_HALF_WIDTH - footprintCenterX, 0)
+      const overRight = Math.max(footprintCenterX + LABEL_HALF_WIDTH - width, 0)
 
       next[haunt.id] = {
-        left: point.x,
-        top: point.y,
-        width: clamp(Math.hypot(east.x - west.x, east.y - west.y)),
-        height: clamp(Math.hypot(north.x - south.x, north.y - south.y)),
+        left: footprintCenterX,
+        top: footprintCenterY,
+        width: Math.max(1, maxX - minX),
+        height: Math.max(1, maxY - minY),
         labelShift: overLeft - overRight,
       }
     })

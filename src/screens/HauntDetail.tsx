@@ -14,7 +14,7 @@
  * friend of a friend gets none of them; the feed sends an empty list, and this
  * screen refuses to show any it was handed anyway.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity,
   ArrowRight,
@@ -264,9 +264,41 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
   // early return below so the hook order survives a haunt going away.
   const [galleryAt, setGalleryAt] = useState<number | null>(null)
   const haunt = haunts.find((h) => h.id === hauntId)
+  const isOwn = Boolean(haunt && haunt.finderHandle === user.handle)
+  const isFof = Boolean(haunt && haunt.visibility === 'fof' && !isOwn)
+  const coverPhoto = !isFof ? haunt?.photoUrls[0] : undefined
+  const [heroAspectRatio, setHeroAspectRatio] = useState(4 / 5)
+
+  /*
+   * The hero is portrait by default so the place feels like a found image,
+   * not a generic map banner. Once a real cover photo loads, let its natural
+   * orientation decide: landscape photos get a landscape frame, portrait
+   * photos keep the portrait treatment.
+   */
+  useEffect(() => {
+    setHeroAspectRatio(4 / 5)
+    if (!coverPhoto) return
+
+    let cancelled = false
+    const image = new Image()
+    image.onload = () => {
+      if (cancelled || image.naturalHeight === 0) return
+      const naturalRatio = image.naturalWidth / image.naturalHeight
+      setHeroAspectRatio(
+        naturalRatio > 1
+          ? Math.min(1.7, Math.max(1.25, naturalRatio))
+          : Math.min(0.9, Math.max(0.72, naturalRatio)),
+      )
+    }
+    image.src = coverPhoto
+
+    return () => {
+      cancelled = true
+      image.onload = null
+    }
+  }, [coverPhoto])
+
   if (!haunt) return null
-  const isOwn = haunt.finderHandle === user.handle
-  const isFof = haunt.visibility === 'fof' && !isOwn
   const audience =
     haunt.audience === 'self'
       ? { icon: Lock, label: 'only you', note: 'this haunt is kept close' }
@@ -289,7 +321,10 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
 
         {/* hero */}
         <div className="mx-4 overflow-hidden rounded-[30px] border border-white/[0.12] shadow-[0_24px_58px_rgba(0,0,0,.34)]">
-          <div className="relative flex h-56 flex-col justify-end p-5" style={hauntArtworkStyle(haunt)}>
+          <div
+            className="relative flex flex-col justify-end p-5 transition-[aspect-ratio] duration-300 [transition-timing-function:var(--ease-out)]"
+            style={{ ...hauntArtworkStyle(haunt), aspectRatio: heroAspectRatio }}
+          >
             <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
             {photos.length > 0 && (
               <>
