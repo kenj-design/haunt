@@ -24,10 +24,10 @@ function TabBar() {
   if (screen.name !== 'map' && screen.name !== 'profile') return null
   return (
     <nav
-      className="app-tab-surface pointer-events-none absolute left-3 top-1/2 z-30 -translate-y-1/2 rounded-[22px] p-1"
+      className={`app-tab-surface pointer-events-none absolute left-1/2 z-[55] -translate-x-1/2 rounded-full p-1.5 ${screen.name === 'map' ? 'bottom-[82px]' : 'bottom-5'}`}
       aria-label="primary navigation"
     >
-      <div className="pointer-events-auto flex flex-col gap-1">
+      <div className="pointer-events-auto flex items-center gap-1">
         <button
           type="button"
           onClick={() => setTab('map')}
@@ -45,7 +45,7 @@ function TabBar() {
           title="Profile"
           className={`app-tab-floater-item pressable ${tab === 'profile' ? 'is-active' : ''}`}
         >
-          <User size={17} strokeWidth={tab === 'profile' ? 1.8 : 1.45} />
+          <User size={18} strokeWidth={tab === 'profile' ? 1.8 : 1.45} />
           <span className="sr-only">Profile</span>
         </button>
       </div>

@@ -157,7 +157,7 @@ function SelectedPlaceCard({
 
   return (
     <div
-      className={`selected-place-card absolute inset-x-3 bottom-3 z-50 overflow-hidden rounded-[28px] border border-white/[0.16] shadow-[0_22px_60px_rgba(0,0,0,.62)] ${isClosing ? 'is-closing' : ''}`}
+      className={`selected-place-card absolute inset-x-3 bottom-3 z-[60] overflow-hidden rounded-[28px] border border-white/[0.16] shadow-[0_22px_60px_rgba(0,0,0,.62)] ${isClosing ? 'is-closing' : ''}`}
       role="dialog"
       aria-label={isFof ? 'selected nearby place' : `selected place ${haunt.name}`}
     >
@@ -715,7 +715,7 @@ export default function MapScreen() {
       <button
         type="button"
         onClick={() => navigate({ name: 'drop' })}
-        className="pressable absolute right-5 bottom-[198px] z-20 flex h-[46px] w-[46px] cursor-pointer items-center justify-center rounded-full border border-white/90 bg-[#f4f4f6] text-black shadow-[0_12px_30px_rgba(0,0,0,.42)]"
+        className="pressable absolute right-5 bottom-[82px] z-[45] flex h-[46px] w-[46px] cursor-pointer items-center justify-center rounded-full border border-white/90 bg-[#f4f4f6] text-black shadow-[0_12px_30px_rgba(0,0,0,.42)]"
         aria-label="drop a haunt"
       >
         <Plus size={20} strokeWidth={1.55} />
