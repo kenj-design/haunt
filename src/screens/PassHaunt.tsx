@@ -12,7 +12,7 @@
 import { useState } from 'react'
 import { Send } from 'lucide-react'
 import { useApp } from '../context/appState'
-import { Avatar, hauntArtworkStyle, PrimaryButton, ScreenHeader } from '../components/ui'
+import { Avatar, hauntArtworkStyle, HauntReferenceCard, PrimaryButton, ScreenHeader } from '../components/ui'
 
 export default function PassHaunt({ hauntId }: { hauntId: string }) {
   const { haunts, friends, goBack, passHaunt, setTab, user, isBusy } = useApp()
@@ -58,18 +58,15 @@ export default function PassHaunt({ hauntId }: { hauntId: string }) {
       />
 
       {/* haunt ref card */}
-      <div className="premium-card mx-5 flex items-center gap-3.5 rounded-[24px] p-3.5">
-        <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border-[0.5px] border-line"
-          style={hauntArtworkStyle(haunt)}
-        />
-        <div>
-          <p className="text-[14px] font-medium text-ink">{haunt.name}</p>
-          <p className="text-[11px] text-ink-3">
+      <HauntReferenceCard
+        haunt={haunt}
+        className="mx-5"
+        subtitle={
+          <>
             found by <span className="font-mono">{haunt.finderHandle}</span>
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {step === 1 && (
         <div className="fade-in px-5 pt-6">

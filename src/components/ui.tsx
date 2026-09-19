@@ -1,6 +1,7 @@
 /**
- * Shared building blocks: the avatar, the vibe orb, the screen header, the
- * primary button, and the artwork style a haunt renders behind its name.
+ * Shared building blocks: the avatar, the vibe orb, haunt reference cards, the
+ * screen header, the primary button, and the artwork style a haunt renders
+ * behind its name.
  *
  * Deliberately small. Anything only one screen uses belongs to that screen, and
  * anything with real behaviour — the note composer, the shroud controls — is its
@@ -60,6 +61,40 @@ export function hauntArtworkStyle(haunt: Pick<Haunt, 'photoUrls' | 'zone'>): CSS
     backgroundPosition: 'center',
     backgroundSize: 'cover',
   }
+}
+
+/**
+ * The small haunt identity card used when a screen needs to keep the place in
+ * view while the person takes another action. Keeping the artwork, spacing,
+ * and title treatment here prevents pass, lineage, and future flows from
+ * drifting apart.
+ */
+export function HauntReferenceCard({
+  haunt,
+  subtitle,
+  className = '',
+  artworkSize = 'compact',
+}: {
+  haunt: Pick<Haunt, 'name' | 'photoUrls' | 'zone'>
+  subtitle: ReactNode
+  className?: string
+  artworkSize?: 'compact' | 'medium'
+}) {
+  const artworkClass = artworkSize === 'medium' ? 'h-12 w-12' : 'h-11 w-11'
+
+  return (
+    <div className={`premium-card flex items-center gap-3.5 rounded-[24px] p-3.5 ${className}`}>
+      <div
+        className={`shrink-0 rounded-[14px] border-[0.5px] border-line ${artworkClass}`}
+        style={hauntArtworkStyle(haunt)}
+        aria-hidden="true"
+      />
+      <div className="min-w-0">
+        <p className="truncate text-[14px] font-medium text-ink">{haunt.name}</p>
+        <p className="truncate text-[11px] text-ink-3">{subtitle}</p>
+      </div>
+    </div>
+  )
 }
 
 export function VibePill({

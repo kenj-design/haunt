@@ -8,9 +8,9 @@
  * Anyone outside the viewer's circle appears with the `anon` role: the chain
  * still shows that someone was there, without naming a stranger.
  */
-import { MapPin, Users } from 'lucide-react'
+import { Users } from 'lucide-react'
 import { useApp } from '../context/appState'
-import { Avatar, hauntArtworkStyle, ScreenHeader } from '../components/ui'
+import { Avatar, HauntReferenceCard, ScreenHeader } from '../components/ui'
 import Stamp from '../components/Stamp'
 import { isGroupFounded } from '../domain'
 
@@ -33,20 +33,16 @@ export default function Lineage({ hauntId }: { hauntId: string }) {
       <ScreenHeader title="The Haunting" serif onBack={goBack} />
 
       {/* haunt mini card */}
-      <div className="premium-card mx-5 flex items-center gap-3.5 rounded-[24px] p-3.5">
-        <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border-[0.5px] border-line"
-          style={hauntArtworkStyle(haunt)}
-        >
-          <MapPin size={16} strokeWidth={1.5} className="text-ink-2" />
-        </div>
-        <div>
-          <p className="text-[14px] font-medium text-ink">{haunt.name}</p>
-          <p className="text-[11px] text-ink-3">
+      <HauntReferenceCard
+        haunt={haunt}
+        className="mx-5"
+        artworkSize="medium"
+        subtitle={
+          <>
             {haunt.visitorCount} {haunt.visitorCount === 1 ? 'person has' : 'people have'} made it
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="px-5 pt-6">
         {/* group founding card */}
