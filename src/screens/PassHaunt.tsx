@@ -10,7 +10,7 @@
  * had not.
  */
 import { useState } from 'react'
-import { MapPin, Send } from 'lucide-react'
+import { Send } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { Avatar, hauntArtworkStyle, PrimaryButton, ScreenHeader } from '../components/ui'
 
@@ -61,10 +61,8 @@ export default function PassHaunt({ hauntId }: { hauntId: string }) {
       <div className="premium-card mx-5 flex items-center gap-3.5 rounded-[24px] p-3.5">
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border-[0.5px] border-line"
-        style={hauntArtworkStyle(haunt)}
-        >
-          <MapPin size={15} strokeWidth={1.5} className="text-ink-2" />
-        </div>
+          style={hauntArtworkStyle(haunt)}
+        />
         <div>
           <p className="text-[14px] font-medium text-ink">{haunt.name}</p>
           <p className="text-[11px] text-ink-3">
