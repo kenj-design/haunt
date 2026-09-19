@@ -2085,6 +2085,11 @@ audio {
     animation: none;
     transform: none;
   }
+  .selected-place-card,
+  .selected-place-card.is-closing {
+    transform: none;
+    transition: opacity 160ms ease;
+  }
   .map-grain {
     animation: none;
   }
