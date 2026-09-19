@@ -14,7 +14,7 @@
  * friend of a friend gets none of them; the feed sends an empty list, and this
  * screen refuses to show any it was handed anyway.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Activity,
   ArrowRight,
@@ -263,11 +263,20 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
   // Which photo the gallery is open on, or null for closed. Declared before the
   // early return below so the hook order survives a haunt going away.
   const [galleryAt, setGalleryAt] = useState<number | null>(null)
+  const [heroPhotoIndex, setHeroPhotoIndex] = useState(0)
+  const heroPhotoTrackRef = useRef<HTMLDivElement>(null)
   const haunt = haunts.find((h) => h.id === hauntId)
   const isOwn = Boolean(haunt && haunt.finderHandle === user.handle)
   const isFof = Boolean(haunt && haunt.visibility === 'fof' && !isOwn)
-  const coverPhoto = !isFof ? haunt?.photoUrls[0] : undefined
+  const photos = isFof ? [] : haunt?.photoUrls ?? []
+  const activePhotoIndex = Math.min(heroPhotoIndex, Math.max(photos.length - 1, 0))
+  const coverPhoto = photos[0]
   const [heroAspectRatio, setHeroAspectRatio] = useState(4 / 5)
+
+  useEffect(() => {
+    setHeroPhotoIndex(0)
+    heroPhotoTrackRef.current?.scrollTo({ left: 0 })
+  }, [hauntId])
 
   /*
    * The hero is portrait by default so the place feels like a found image,
@@ -308,7 +317,6 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
   const AudienceIcon = audience.icon
   // Belt and braces: a shrouded haunt's photos never arrive, and are not shown
   // even if some other backend hands them over.
-  const photos = isFof ? [] : haunt.photoUrls
 
   return (
     <div className="relative h-full">
@@ -325,30 +333,80 @@ export default function HauntDetail({ hauntId }: { hauntId: string }) {
             className="relative flex flex-col justify-end p-5 transition-[aspect-ratio] duration-300 [transition-timing-function:var(--ease-out)]"
             style={{ ...hauntArtworkStyle(haunt), aspectRatio: heroAspectRatio }}
           >
-            <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
             {photos.length > 0 && (
               <>
-                {/* A transparent cover rather than a wrapping button: the name is a
-                    heading, which has no business inside one. */}
-                <button
-                  type="button"
-                  onClick={() => setGalleryAt(0)}
-                  aria-label={photos.length === 1 ? 'open the photo' : `open all ${photos.length} photos`}
-                  className="absolute inset-0 z-10 cursor-pointer"
-                />
+                <div
+                  ref={heroPhotoTrackRef}
+                  onScroll={(event) => {
+                    const track = event.currentTarget
+                    if (track.clientWidth === 0) return
+                    setHeroPhotoIndex(
+                      Math.min(
+                        photos.length - 1,
+                        Math.max(0, Math.round(track.scrollLeft / track.clientWidth)),
+                      ),
+                    )
+                  }}
+                  className="no-scrollbar absolute inset-0 z-0 flex touch-pan-x snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+                  aria-label="haunt photos"
+                >
+                  {photos.map((photo, index) => (
+                    <button
+                      key={photo}
+                      type="button"
+                      onClick={() => setGalleryAt(index)}
+                      aria-label={
+                        photos.length === 1
+                          ? 'open the photo'
+                          : `open photo ${index + 1} of ${photos.length}`
+                      }
+                      className="relative min-w-full snap-center cursor-pointer"
+                    >
+                      <img
+                        src={photo}
+                        alt={
+                          photos.length === 1
+                            ? 'photo left at this haunt'
+                            : `photo ${index + 1} of ${photos.length} left at this haunt`
+                        }
+                        draggable={false}
+                        className="absolute inset-0 h-full w-full select-none object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/45 via-transparent to-transparent" />
                 <span className="glass-control pointer-events-none absolute top-4 right-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium text-ink">
                   {photos.length > 1 ? (
                     <>
                       <Images size={11} strokeWidth={1.7} aria-hidden="true" />
-                      {photos.length}
+                      {activePhotoIndex + 1}/{photos.length}
                     </>
                   ) : (
                     <Expand size={11} strokeWidth={1.7} aria-hidden="true" />
                   )}
                 </span>
+                {photos.length > 1 && (
+                  <div className="pointer-events-none absolute top-12 right-4 z-20 flex items-center gap-1.5" aria-hidden="true">
+                    {photos.map((photo, index) => (
+                      <span
+                        key={photo}
+                        className={`h-1.5 rounded-full transition-[width,opacity] duration-200 ${
+                          index === activePhotoIndex ? 'w-4 bg-white/90' : 'w-1.5 bg-white/45'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+                <p className="sr-only" aria-live="polite">
+                  photo {activePhotoIndex + 1} of {photos.length}
+                </p>
               </>
             )}
-            <div className="relative">
+            {photos.length === 0 && (
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+            )}
+            <div className="relative z-10">
               <h1 className="text-[30px] font-semibold tracking-[-0.045em] text-ink">{isFof ? '???' : haunt.name}</h1>
               <p className="mt-1 text-[12px] text-ink-2">
                 {isFof ? (
