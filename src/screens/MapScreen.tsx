@@ -715,7 +715,7 @@ export default function MapScreen() {
       <button
         type="button"
         onClick={() => navigate({ name: 'drop' })}
-        className="pressable absolute right-5 bottom-[82px] z-[45] flex h-[46px] w-[46px] cursor-pointer items-center justify-center rounded-full border border-white/90 bg-[#f4f4f6] text-black shadow-[0_12px_30px_rgba(0,0,0,.42)]"
+        className="pressable absolute right-5 bottom-[126px] z-[45] flex h-[46px] w-[46px] cursor-pointer items-center justify-center rounded-full border border-white/90 bg-[#f4f4f6] text-black shadow-[0_12px_30px_rgba(0,0,0,.42)]"
         aria-label="drop a haunt"
       >
         <Plus size={20} strokeWidth={1.55} />

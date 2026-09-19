@@ -24,7 +24,7 @@ function TabBar() {
   if (screen.name !== 'map' && screen.name !== 'profile') return null
   return (
     <nav
-      className={`app-tab-surface pointer-events-none absolute left-1/2 z-[55] -translate-x-1/2 rounded-full p-1.5 ${screen.name === 'map' ? 'bottom-[82px]' : 'bottom-5'}`}
+      className={`app-tab-surface pointer-events-none absolute left-1/2 z-[55] -translate-x-1/2 rounded-full p-1.5 ${screen.name === 'map' ? 'bottom-[126px]' : 'bottom-5'}`}
       aria-label="primary navigation"
     >
       <div className="pointer-events-auto flex items-center gap-1">
