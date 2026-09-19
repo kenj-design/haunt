@@ -784,19 +784,7 @@ export default function MapScreen() {
               <div
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,.08)]"
                 style={hauntArtworkStyle(h)}
-              >
-                <MapPin
-                  size={16}
-                  strokeWidth={1.5}
-                  color={
-                    h.status === 'visited'
-                      ? '#b7d2c6'
-                      : h.visibility === 'fof'
-                        ? '#dfbea4'
-                        : '#c8c4ee'
-                  }
-                />
-              </div>
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[14px] font-semibold tracking-[-0.012em] text-ink">{h.name}</p>
                 <p className="mt-0.5 text-[10px] tracking-[0.01em] text-ink-3">
