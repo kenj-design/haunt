@@ -80,8 +80,10 @@ export interface AppState {
    * its confirmation that way, and `DropHaunt` hands its photo URLs over. Callers
    * with nothing to decide may fire and forget; failures surface through `error`
    * either way.
-   */
+  */
   completeOnboarding: (handle: string) => Promise<boolean>
+  /** Asks for location only when a location-dependent screen is entered. */
+  requestLocation: () => Promise<boolean>
   /**
    * Pushes a screen, or with `replace` swaps the current one for it.
    *

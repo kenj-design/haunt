@@ -53,17 +53,18 @@ import type {
   ProfileSnapshotRow,
 } from './rows'
 
-/** How long to wait for a position before loading the map without distances. */
+/** How long to wait for a position after a location-dependent screen is entered. */
 const GEOLOCATION_TIMEOUT_MS = 8_000
 
 /**
  * How long a fix stays good enough to reuse.
  *
- * Every read passes the viewer's position to `haunt_feed`, and re-reading one
- * haunt after a mutation is a read. Without this, each of those waits on the
- * geolocation API again — up to the timeout above when permission is denied or
- * pending, which shows up as the UI taking eight seconds to catch up with a
- * write that already succeeded. Nobody moves far enough in a minute to matter.
+ * Location-aware reads pass the viewer's position to `haunt_feed`, and
+ * re-reading one haunt after a mutation is a read. Without this, each of those
+ * waits on the geolocation API again — up to the timeout above when permission
+ * is denied or pending, which shows up as the UI taking eight seconds to catch
+ * up with a write that already succeeded. Nobody moves far enough in a minute
+ * to matter.
  */
 const POSITION_TTL_MS = 60_000
 
@@ -211,8 +212,7 @@ export function createSupabaseDataSource(
     )
   }
 
-  async function readHaunts(hauntId?: string): Promise<Haunt[]> {
-    const position = await currentPosition()
+  async function readHaunts(position: Position | null, hauntId?: string): Promise<Haunt[]> {
     const rows = unwrap<HauntFeedRow[]>(
       await supabase.rpc('haunt_feed', {
         p_lat: position?.lat ?? null,
@@ -226,7 +226,7 @@ export function createSupabaseDataSource(
 
   /** Re-reads one haunt after a mutation, so the app takes the server's version. */
   async function readHaunt(hauntId: string): Promise<Haunt> {
-    const [haunt] = await readHaunts(hauntId)
+    const [haunt] = await readHaunts(cachedPosition?.value ?? null, hauntId)
     if (!haunt) throw new DataError('not-found', `no haunt with id "${hauntId}"`)
     return haunt
   }
@@ -277,58 +277,62 @@ export function createSupabaseDataSource(
     return rows.map((row) => ({ handle: row.handle, direction: row.direction }))
   }
 
-  return {
-    async loadSnapshot(): Promise<AppSnapshot> {
-      const userId = await requireUserId()
+  async function loadSnapshot(position: Position | null): Promise<AppSnapshot> {
+    const userId = await requireUserId()
 
-      // Before reading anything, let the server notice haunts nearby. This is
-      // what populates `visits.near_at`, so the "did you make it?" prompt is
-      // part of the same snapshot rather than appearing a beat later.
+    // Independent reads, so they go out together rather than in a queue.
+    const [user, friends, haunts, keepsakeRows, notificationRows, friendRequests, missed] =
+      await Promise.all([
+        readUser(),
+        readFriends(),
+        readHaunts(position),
+        readKeepsakeRows(userId),
+        supabase
+          .from('notifications')
+          .select('id, kind, haunt_id, body, created_at, read_at, actor:profiles!actor_id(handle)')
+          .eq('recipient_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(50)
+          .returns<NotificationRow[]>(),
+        readFriendRequests(),
+        supabase.rpc('missed_visit_id'),
+      ])
+
+    const rows = unwrap<NotificationRow[]>(notificationRows, "couldn't read your news")
+    // The feed has already decided what this viewer may know about each place,
+    // so the keepsakes take their names from it rather than asking again.
+    const byId = new Map(haunts.map((haunt) => [haunt.id, haunt]))
+    const keepsakes = keepsakeRows.map((row) => toKeepsake(row, byId.get(row.haunt_id)))
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('onboarded')
+      .eq('id', userId)
+      .single()
+
+    return {
+      user,
+      friends,
+      haunts,
+      keepsakes,
+      notifications: rows.map(toNotification),
+      friendRequests,
+      missedVisitId: (missed.data as string | null) ?? null,
+      onboarded: Boolean(profile?.onboarded),
+      notificationsUnread: rows.some((row) => row.read_at === null),
+    }
+  }
+
+  return {
+    loadSnapshot: () => loadSnapshot(null),
+
+    async requestLocation(): Promise<AppSnapshot> {
       const position = await currentPosition()
       if (position) {
+        // This is intentionally reached only from a location-dependent screen,
+        // never from boot or from the onboarding handle claim.
         await supabase.rpc('record_proximity', { p_lat: position.lat, p_lng: position.lng })
       }
-
-      // Independent reads, so they go out together rather than in a queue.
-      const [user, friends, haunts, keepsakeRows, notificationRows, friendRequests, missed] =
-        await Promise.all([
-          readUser(),
-          readFriends(),
-          readHaunts(),
-          readKeepsakeRows(userId),
-          supabase
-            .from('notifications')
-            .select('id, kind, haunt_id, body, created_at, read_at, actor:profiles!actor_id(handle)')
-            .eq('recipient_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50)
-            .returns<NotificationRow[]>(),
-          readFriendRequests(),
-          supabase.rpc('missed_visit_id'),
-        ])
-
-      const rows = unwrap<NotificationRow[]>(notificationRows, "couldn't read your news")
-      // The feed has already decided what this viewer may know about each place,
-      // so the keepsakes take their names from it rather than asking again.
-      const byId = new Map(haunts.map((haunt) => [haunt.id, haunt]))
-      const keepsakes = keepsakeRows.map((row) => toKeepsake(row, byId.get(row.haunt_id)))
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('onboarded')
-        .eq('id', userId)
-        .single()
-
-      return {
-        user,
-        friends,
-        haunts,
-        keepsakes,
-        notifications: rows.map(toNotification),
-        friendRequests,
-        missedVisitId: (missed.data as string | null) ?? null,
-        onboarded: Boolean(profile?.onboarded),
-        notificationsUnread: rows.some((row) => row.read_at === null),
-      }
+      return loadSnapshot(position)
     },
 
     async completeOnboarding(handle: string): Promise<AppSnapshot> {
@@ -336,7 +340,7 @@ export function createSupabaseDataSource(
       if (error) throw toDataErrorFrom(error, "couldn't claim that handle")
       // A handle threads through lineage entries and founder lists, so the whole
       // snapshot is re-read rather than patched. The contract says as much.
-      return this.loadSnapshot()
+      return loadSnapshot(null)
     },
 
     async arriveAtHaunt(hauntId: string): Promise<Haunt> {

@@ -123,7 +123,9 @@ export default function Onboarding() {
         {step === 1 && (
           <OnboardingStep key={1}>
             <div className="onboarding-art">
-              <Stamp slot="onboardOpen" eager tilt={-1.9} className="note-reveal w-[250px]" />
+              <div className="onboarding-stamp-print">
+                <Stamp slot="onboardOpen" eager tilt={-1.9} className="w-[250px] aspect-square" />
+              </div>
             </div>
             <h1 className="max-w-[335px] text-[40px] font-semibold leading-[1] tracking-[-0.055em] text-white">
               Save a place.<br />Give it to one<br />friend.
@@ -142,7 +144,9 @@ export default function Onboarding() {
         {step === 2 && (
           <OnboardingStep key={2}>
             <div className="onboarding-art">
-              <Stamp slot="onboardPassed" tilt={1.7} className="note-reveal w-[244px]" />
+              <div className="onboarding-stamp-print">
+                <Stamp slot="onboardPassed" tilt={1.7} className="w-[244px] aspect-square" />
+              </div>
             </div>
             <h1 className="text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
               Nobody gets the exact spot.
@@ -161,7 +165,9 @@ export default function Onboarding() {
         {step === 3 && (
           <OnboardingStep key={3}>
             <div className="onboarding-art onboarding-art-small">
-              <Stamp slot="onboardName" tilt={1.5} className="w-[112px]" />
+              <div className="onboarding-stamp-print">
+                <Stamp slot="onboardName" tilt={1.5} className="w-[112px] aspect-square" />
+              </div>
             </div>
             <h1 className="text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
               What should friends call you?
@@ -201,7 +207,9 @@ export default function Onboarding() {
         {step === 4 && (
           <OnboardingStep key={4}>
             <div className="onboarding-art onboarding-art-small">
-              <Stamp slot="onboardInvite" tilt={-1.6} className="w-[132px]" />
+              <div className="onboarding-stamp-print">
+                <Stamp slot="onboardInvite" tilt={-1.6} className="w-[132px] aspect-square" />
+              </div>
             </div>
             <h1 className="text-[32px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
               Haunt needs one other person.
@@ -305,7 +313,9 @@ export default function Onboarding() {
         {step === 5 && (
           <OnboardingStep key={5}>
             <div className="onboarding-art">
-              <Stamp slot="onboardWaiting" tilt={-1.2} className="w-[228px]" />
+              <div className="onboarding-stamp-print">
+                <Stamp slot="onboardWaiting" tilt={-1.2} className="w-[228px] aspect-square" />
+              </div>
             </div>
             <div className="onboarding-handle-chip">@{handle || 'you'} · you are in</div>
             <h1 className="mt-5 text-[34px] font-semibold leading-[1.06] tracking-[-0.05em] text-white">

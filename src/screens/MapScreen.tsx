@@ -36,7 +36,7 @@ import {
 import { MAP_ATTRIBUTION, hauntMapStyle } from '../lib/mapStyle'
 import { stringSeed } from '../lib/seed'
 
-const SHEET_PEEK = 142
+const SHEET_PEEK = 188
 const OVERSCROLL_FRICTION = 0.32
 const FLICK_VELOCITY = 0.45 // px/ms; recent finger velocity, not whole-gesture average
 const VELOCITY_WINDOW = 100 // ms
@@ -75,6 +75,8 @@ const ZONE_PX_BOUNDS = { min: 54, max: 220 }
 const METRES_PER_DEGREE = 111320
 /** Room a name needs on either side of its zone before it runs off the frame. */
 const LABEL_HALF_WIDTH = 78
+/** A restrained echo of the map's bearing, keeping captions subtly grounded. */
+const LABEL_TILT_DEGREES = MAP_BEARING / 2
 /** Shroud shapes cycle through this many variants. */
 const SHROUD_VARIANTS = 17
 
@@ -128,7 +130,10 @@ function Zone({
       </div>
       <div
         className="map-haunt-label pressable-subtle absolute top-[calc(100%+4px)] left-1/2 max-w-[46vw] truncate rounded-full border border-white/[0.11] bg-black/72 px-2.5 py-1 text-white/88 shadow-lg backdrop-blur-xl transition-colors duration-200 group-hover:bg-black/90 group-active:bg-black/90"
-        style={{ transform: `translateX(calc(-50% + ${position.labelShift}px))` }}
+        style={{
+          transform: `translateX(calc(-50% + ${position.labelShift}px)) rotate(${LABEL_TILT_DEGREES}deg)`,
+          transformOrigin: 'center top',
+        }}
       >
         {isFof ? '???' : haunt.name}
       </div>
@@ -147,6 +152,7 @@ export default function MapScreen() {
     clearFocusHaunt,
     notificationsUnread,
     user,
+    requestLocation,
   } = useApp()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
@@ -163,14 +169,37 @@ export default function MapScreen() {
   const [markerPositions, setMarkerPositions] = useState<Record<string, MarkerPosition>>({})
   hauntsRef.current = mappableHaunts
 
+  // Location is useful here, but it should never be a boot-time surprise. The
+  // map is the first screen where asking for it has a clear explanation.
+  useEffect(() => {
+    void requestLocation()
+  }, [requestLocation])
+
   syncMarkersRef.current = () => {
     const map = mapRef.current
     if (!map) return
-    const width = map.getCanvas().clientWidth
+    const canvas = map.getCanvas()
+    const width = canvas.clientWidth
+    const height = canvas.clientHeight
     const next: Record<string, MarkerPosition> = {}
     hauntsRef.current.forEach((haunt) => {
       const [lat, lng] = hauntLatLng(haunt.zone)
       const point = map.project([lng, lat])
+
+      // `project` still returns a coordinate for places that are beyond the
+      // camera's visible surface. That matters with this map's pitch: a haunt
+      // behind the horizon can project into the page, and its label (which
+      // sits below the marker) can become visible even though the location is
+      // not. Only keep overlays whose anchor is actually in the viewport.
+      const isVisible =
+        Number.isFinite(point.x) &&
+        Number.isFinite(point.y) &&
+        point.x >= 0 &&
+        point.x <= width &&
+        point.y >= 0 &&
+        point.y <= height &&
+        map.transform.isPointOnMapSurface(point)
+      if (!isVisible) return
 
       /*
        * The zone's own footprint, projected. A single metres-per-pixel figure
@@ -420,6 +449,7 @@ export default function MapScreen() {
       (h.audience !== 'self' || h.finderHandle === user.handle) &&
       (h.visibility === 'friend' || h.finderHandle === user.handle),
   )
+  const featured = visible[0]
 
   return (
     // no entrance animation: the map is the home surface, seen constantly
@@ -432,10 +462,10 @@ export default function MapScreen() {
         className="haunt-map absolute inset-0 z-0 h-full w-full"
         aria-label="Dumaguete City map. Drag to explore and pinch to zoom."
       />
-      {/* A whisper of a scrim. The old one was 24% black, to tame bright satellite
-          imagery; the basemap is ours and already dark, so this only has to keep
-          the horizon from competing with the labels. */}
-      <div className="pointer-events-none absolute inset-0 bg-black/10" />
+      {/* The reference map keeps the center readable and lets the edges fall
+          away. This is deliberately softer than a full scrim so the local road
+          labels can still breathe through the atmosphere. */}
+      <div className="pointer-events-none absolute inset-0 z-[1] map-focus-gradient" />
       {mappableHaunts.map((h) => {
         const position = markerPositions[h.id]
         return position ? (
@@ -576,10 +606,12 @@ export default function MapScreen() {
       {/* bottom sheet — draggable from the handle, tap still toggles */}
       <div
         ref={sheetRef}
-        className={`map-sheet absolute inset-x-0 bottom-0 z-20 rounded-t-[32px] border-t shadow-[0_-26px_70px_rgba(0,0,0,.5)] ${
+        className={`map-sheet absolute inset-x-0 bottom-0 rounded-t-[32px] border-t shadow-[0_-26px_70px_rgba(0,0,0,.5)] ${
+          sheetOpen || dragY !== null ? 'z-40' : 'z-20'
+        } ${
           dragY === null
             ? `transition-transform duration-450 [transition-timing-function:var(--ease-drawer)] ${
-                sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-142px)]'
+                sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-188px)]'
               }`
             : ''
         }`}
@@ -606,16 +638,56 @@ export default function MapScreen() {
                 Places close to you
               </span>
             </div>
-            <span className="glass-control flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-medium text-white/65">
-              {visible.length}
-              <ChevronUp
-                size={13}
-                strokeWidth={1.6}
-                className={`transition-transform duration-200 [transition-timing-function:var(--ease-in-out)] ${sheetOpen ? 'rotate-180' : ''}`}
-              />
-            </span>
+            {!sheetOpen && (
+              <span className="glass-control flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-medium text-white/65">
+                {visible.length}
+                <ChevronUp
+                  size={13}
+                  strokeWidth={1.6}
+                  className="transition-transform duration-200 [transition-timing-function:var(--ease-in-out)]"
+                />
+              </span>
+            )}
           </div>
         </button>
+        {featured && !sheetOpen && (
+          <button
+            type="button"
+            onClick={() => navigate({ name: 'haunt', hauntId: featured.id })}
+            className="map-sheet-featured pressable mx-3 mb-2 flex items-center gap-3 rounded-[20px] px-3 py-2.5 text-left"
+          >
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-white/[0.13]"
+              style={hauntArtworkStyle(featured)}
+            >
+              <MapPin
+                size={15}
+                strokeWidth={1.55}
+                color={
+                  featured.status === 'visited'
+                    ? '#b7d2c6'
+                    : featured.visibility === 'fof'
+                      ? '#dfbea4'
+                      : '#c8c4ee'
+                }
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-white/42">
+                sealed nearby
+              </p>
+              <p className="mt-0.5 truncate text-[14px] font-semibold tracking-[-0.02em] text-white/92">
+                {featured.name}
+              </p>
+              <p className="mt-0.5 truncate text-[10px] text-white/45">
+                from <span className="font-mono">{featured.finderHandle}</span>
+                <span className="px-1.5 text-white/22">·</span>
+                {featured.distanceLabel}
+              </p>
+            </div>
+            <ChevronUp size={14} strokeWidth={1.6} className="-rotate-90 shrink-0 text-white/36" />
+          </button>
+        )}
         <div
           id="nearby-haunts"
           className={`no-scrollbar h-full overflow-y-auto px-3 pt-1 pb-36 transition-opacity duration-200 [transition-timing-function:var(--ease-out)] ${sheetOpen || dragY !== null ? 'opacity-100' : 'pointer-events-none opacity-0'}`}

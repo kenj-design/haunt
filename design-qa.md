@@ -61,3 +61,42 @@ No actionable P0, P1, or P2 issue remains for the requested change.
 - None blocking.
 
 final result: passed
+# Design QA — Neighborhoods-inspired map pass (2026-09-19)
+
+## Comparison target
+
+- Source visual truth: [Cam Worboys' Neighborhoods map update](https://x.com/camworboys/status/2101000329647227078), inspected in Chrome from the linked post's embedded video frame.
+- Browser-rendered implementation: `http://localhost:5173/`, rendered in the Codex in-app browser at 393 × 852 CSS px, device scale factor 1.
+- State: Dumaguete discovery map, nearby sheet resting with the compact featured haunt card visible.
+- Density normalization: the source is a video reference rather than a pixel-matched mock; comparison was made against the phone UI's visible map composition and controls, not the surrounding X chrome.
+
+## Full-view comparison evidence
+
+The map now follows the reference's main visual cues: charcoal local basemap, visible neighborhood road/building density, restrained place labels, a soft edge falloff, and a low rounded result surface. Haunt's fog fields, attribution, location prompt, navigation rail, and map controls remain product-specific so the redesign does not erase the app's core meaning.
+
+## Focused region comparison evidence
+
+- Map surface: local road lines and place labels remain readable under the dark treatment; the fog field still dominates as the primary Haunt marker.
+- Bottom surface: the resting state now exposes a compact `sealed nearby` place card, closer to the reference's selected-place card, while the existing full nearby list remains available by dragging or tapping the sheet.
+
+## Required fidelity surfaces
+
+- **Fonts and typography:** existing SF Pro-style display/text hierarchy is preserved; the new card uses the same small uppercase eyebrow, compact title, and mono distance treatment already used by the app.
+- **Spacing and layout rhythm:** map controls continue to clear the sheet; the resting sheet peek increased from 142 px to 188 px so the featured card is visible without opening the list.
+- **Colors and visual tokens:** basemap colors are warmer charcoal/graphite and road/building layers are lifted enough to match the reference's readable dark map; overlays remain muted.
+- **Image quality and asset fidelity:** no new raster assets were needed; the map continues to use live vector tiles and existing haunt artwork previews. Icons continue to use the app's established Lucide set.
+- **Copy and content:** existing Haunt copy and place names are unchanged; the new label is `sealed nearby` to connect the reference's local-place treatment to Haunt's sealed-note mechanic.
+
+## Findings
+
+No actionable P0, P1, or P2 issue remains for this adaptation. A P3 difference remains intentionally: the source has category-specific merchant pins and a merchant photo card, while Haunt retains fog zones and haunt artwork because exact-place privacy and sealed notes are core product behavior.
+
+## Interaction verification
+
+- Tapped the resting nearby sheet to expand the full list.
+- Opened a haunt from the nearby list and returned to the map.
+- Verified the compact featured card is exposed in the resting state.
+- TypeScript project check and Vite production build passed.
+- Browser console inspection was not available through the in-app browser surface; no runtime error was visible in the rendered state.
+
+final result: passed

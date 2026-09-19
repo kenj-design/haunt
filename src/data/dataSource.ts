@@ -109,6 +109,13 @@ export interface HauntDataSource {
   loadSnapshot(): Promise<AppSnapshot>
 
   /**
+   * Explicitly asks for location once a location-dependent screen is visible,
+   * then refreshes the snapshot with distance and proximity data when a fix is
+   * available. A denied or unavailable position is still a valid snapshot.
+   */
+  requestLocation(): Promise<AppSnapshot>
+
+  /**
    * Claims a handle and marks this person onboarded.
    *
    * Returns a whole snapshot rather than just the user, because a handle is

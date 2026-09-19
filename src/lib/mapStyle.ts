@@ -29,15 +29,15 @@ const SOURCE = 'basemap'
    Dark, but not black — the first pass was so close to #000 that the whole city
    was invisible. These sit just far enough apart to read as a place while still
    letting everything drawn on top of them dominate. */
-const LAND = '#0c1015'
-const WATER = '#0a1826'
-const WATER_EDGE = '#16283c'
-const GREEN = '#0f1a15'
-const SAND = '#16161a'
-const ROAD = '#2a303a'
-const ROAD_QUIET = '#1c212a'
-const RAIL = '#20242c'
-const WALL = '#242b37'
+const LAND = '#111214'
+const WATER = '#17191c'
+const WATER_EDGE = '#2a2c31'
+const GREEN = '#151816'
+const SAND = '#1a1a1d'
+const ROAD = '#414348'
+const ROAD_QUIET = '#292b30'
+const RAIL = '#34363b'
+const WALL = '#292b30'
 
 /** Real height when OSM has one, a plausible one when it doesn't. */
 const BUILDING_HEIGHT: ExpressionSpecification = [
@@ -50,6 +50,7 @@ const BUILDING_HEIGHT: ExpressionSpecification = [
 export function hauntMapStyle(): StyleSpecification {
   return {
     version: 8,
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     /* Low, from the side the camera faces, so the extrusions shade rather than
        glow. `fill-extrusion-vertical-gradient` does the rest. */
     light: { anchor: 'viewport', color: '#c9d6e4', intensity: 0.22, position: [1.4, 200, 38] },
@@ -156,6 +157,54 @@ export function hauntMapStyle(): StyleSpecification {
         minzoom: 13,
         filter: ['==', ['get', 'class'], 'rail'],
         paint: { 'line-color': RAIL, 'line-width': 0.7 },
+      },
+
+      /* A sparse local label layer makes the map feel inhabited without
+         competing with Haunt's own names. OpenFreeMap exposes the standard
+         OpenMapTiles transportation_name layer, so labels stay vector-sharp
+         while the camera moves. */
+      {
+        id: 'road-labels',
+        type: 'symbol',
+        source: SOURCE,
+        'source-layer': 'transportation_name',
+        minzoom: 14,
+        layout: {
+          'symbol-placement': 'line',
+          'text-field': ['get', 'name'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 14, 8, 17, 10],
+          'text-max-angle': 35,
+          'text-padding': 8,
+        },
+        paint: {
+          'text-color': '#8b8d92',
+          'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.35, 16, 0.58, 18, 0.72],
+          'text-halo-color': '#111214',
+          'text-halo-width': 1.2,
+          'text-halo-blur': 0.5,
+        },
+      },
+      {
+        id: 'place-labels',
+        type: 'symbol',
+        source: SOURCE,
+        'source-layer': 'place',
+        minzoom: 11,
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 11, 9, 16, 11.5],
+          'text-letter-spacing': 0.03,
+          'text-padding': 8,
+        },
+        paint: {
+          'text-color': '#a4a6ab',
+          'text-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.14, 14, 0.3, 17, 0.52],
+          'text-halo-color': '#111214',
+          'text-halo-width': 1.5,
+          'text-halo-blur': 0.6,
+        },
       },
 
       {

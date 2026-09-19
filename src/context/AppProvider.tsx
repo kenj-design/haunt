@@ -222,6 +222,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutate, source, previewOnboarding],
   )
 
+  const requestLocation = useCallback(
+    () =>
+      mutate(
+        () => source().requestLocation(),
+        (next) => next,
+        "couldn't get your location",
+      ),
+    [mutate, source],
+  )
+
   // --- haunts ---------------------------------------------------------------
 
   const replaceHaunt = (haunt: Haunt, current: AppSnapshot) => ({
@@ -412,6 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       error,
       dismissError,
       completeOnboarding,
+      requestLocation,
       navigate,
       goBack,
       setTab,
@@ -442,6 +453,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     createRecoveryCode,
     confirmRecoveryCodeSaved,
     completeOnboarding,
+    requestLocation,
     navigate,
     goBack,
     setTab,

@@ -157,6 +157,10 @@ export function createMockDataSource(options: MockDataSourceOptions = {}): Haunt
       return call(() => structuredClone(store))
     },
 
+    requestLocation() {
+      return call(() => structuredClone(store))
+    },
+
     completeOnboarding(handle) {
       return call(() => {
         const previousHandle = store.user.handle

@@ -74,7 +74,7 @@ function zoneTileStyle(zone: { x: number; y: number }) {
 }
 
 export default function DropHaunt() {
-  const { goBack, navigate, dropHaunt, friends, user, isBusy } = useApp()
+  const { goBack, navigate, dropHaunt, friends, user, isBusy, requestLocation } = useApp()
   const scrollRef = useRef<HTMLDivElement>(null)
   const photoUrlsRef = useRef<string[]>([])
   const submittedRef = useRef(false)
@@ -97,6 +97,12 @@ export default function DropHaunt() {
   useLayoutEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
   }, [])
+
+  // Ask when the person chooses to leave a place, not while the app is still
+  // explaining itself. The cached result is reused by the final drop.
+  useEffect(() => {
+    void requestLocation()
+  }, [requestLocation])
 
   useEffect(() => {
     photoUrlsRef.current = photoUrls
