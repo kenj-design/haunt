@@ -725,7 +725,10 @@ export default function MapScreen() {
       <div
         ref={sheetRef}
         className={`map-sheet absolute inset-x-0 bottom-0 rounded-t-[32px] border-t shadow-[0_-26px_70px_rgba(0,0,0,.5)] ${
-          sheetOpen || dragY !== null ? 'z-40' : 'z-20'
+          // The expanded sheet should own the foreground layer, covering the
+          // floating map actions as it rises. Keep the selected place card
+          // above it, though, so an already-open preview is not interrupted.
+          sheetOpen || dragY !== null ? 'z-[58]' : 'z-20'
         } ${
           dragY === null
               ? `transition-transform duration-450 [transition-timing-function:var(--ease-drawer)] ${
