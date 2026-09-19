@@ -83,9 +83,9 @@ export function HauntReferenceCard({
   const artworkClass = artworkSize === 'medium' ? 'h-12 w-12' : 'h-11 w-11'
 
   return (
-    <div className={`premium-card flex items-center gap-3.5 rounded-[24px] p-3.5 ${className}`}>
+    <div className={`haunt-reference-card flex items-center gap-3.5 rounded-[24px] p-3.5 ${className}`}>
       <div
-        className={`shrink-0 rounded-[14px] border-[0.5px] border-line ${artworkClass}`}
+        className={`shrink-0 rounded-[14px] ${artworkClass}`}
         style={hauntArtworkStyle(haunt)}
         aria-hidden="true"
       />
