@@ -15,7 +15,7 @@
  * commits before the sheet crosses its midpoint.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Bell, ChevronUp, LocateFixed, MapPin, Minus, Plus, X } from 'lucide-react'
+import { Bell, ChevronUp, Expand, LocateFixed, MapPin, Minus, MoreHorizontal, Plus, X } from 'lucide-react'
 import { Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useApp } from '../context/appState'
@@ -138,6 +138,81 @@ function Zone({
   )
 }
 
+function SelectedPlaceCard({
+  haunt,
+  isOwn,
+  isClosing,
+  onClose,
+  onOpen,
+}: {
+  haunt: Haunt
+  isOwn: boolean
+  isClosing: boolean
+  onClose: () => void
+  onOpen: () => void
+}) {
+  const isFof = haunt.visibility === 'fof' && !isOwn
+  const statusLabel = haunt.status === 'visited' ? 'visited' : haunt.status === 'arrived' ? 'you made it' : 'sealed nearby'
+
+  return (
+    <div
+      className={`selected-place-card absolute inset-x-3 bottom-3 z-50 overflow-hidden rounded-[28px] border border-white/[0.16] shadow-[0_22px_60px_rgba(0,0,0,.62)] ${isClosing ? 'is-closing' : ''}`}
+      role="dialog"
+      aria-label={isFof ? 'selected nearby place' : `selected place ${haunt.name}`}
+    >
+      <div className="flex items-center justify-between px-3 pt-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="glass-control pressable flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-white/[0.1]"
+          aria-label="close place preview"
+        >
+          <X size={15} strokeWidth={1.65} />
+        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="glass-control pressable flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-white/[0.1]"
+            aria-label="open place details"
+          >
+            <Expand size={14} strokeWidth={1.55} />
+          </button>
+          <button
+            type="button"
+            onClick={onOpen}
+            className="glass-control pressable flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-white/[0.1]"
+            aria-label="more place details"
+          >
+            <MoreHorizontal size={15} strokeWidth={1.55} />
+          </button>
+        </div>
+      </div>
+      <button type="button" onClick={onOpen} className="block w-full cursor-pointer p-3.5 pt-2.5 text-left">
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.15em] text-white/42">{statusLabel}</p>
+            <p className="mt-1 truncate text-[20px] font-semibold tracking-[-0.035em] text-white/94">
+              {isFof ? '???' : haunt.name}
+            </p>
+            <p className="mt-1 truncate text-[10px] text-white/46">
+              from <span className="font-mono">{isFof ? 'someone nearby' : haunt.finderHandle}</span>
+              <span className="px-1.5 text-white/22">·</span>
+              {haunt.distanceLabel}
+            </p>
+          </div>
+          <span className="shrink-0 text-[10px] text-white/42">tap to open</span>
+        </div>
+        <div
+          className="mt-3 h-[82px] overflow-hidden rounded-[18px] border border-white/[0.11]"
+          style={hauntArtworkStyle(haunt)}
+          aria-hidden="true"
+        />
+      </button>
+    </div>
+  )
+}
+
 export default function MapScreen() {
   const {
     haunts,
@@ -154,9 +229,13 @@ export default function MapScreen() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [showDropNotice, setShowDropNotice] = useState(false)
+  const [selectedHauntId, setSelectedHauntId] = useState<string | null>(null)
+  const [selectedPlaceClosing, setSelectedPlaceClosing] = useState(false)
+  const selectedPlaceCloseTimer = useRef<number | null>(null)
   const activeHaunts = haunts.filter((haunt) => isHauntActive(haunt))
   const missed = activeHaunts.find((h) => h.id === missedVisitId)
   const mappableHaunts = activeHaunts.filter((h) => h.audience !== 'self' || h.finderHandle === user.handle)
+  const selectedHaunt = mappableHaunts.find((haunt) => haunt.id === selectedHauntId)
 
   // --- native map pan + zoom ---
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -166,11 +245,45 @@ export default function MapScreen() {
   const [markerPositions, setMarkerPositions] = useState<Record<string, MarkerPosition>>({})
   hauntsRef.current = mappableHaunts
 
+  const closeSelectedPlace = () => {
+    setSelectedPlaceClosing(true)
+    selectedPlaceCloseTimer.current = window.setTimeout(() => {
+      setSelectedHauntId(null)
+      setSelectedPlaceClosing(false)
+      selectedPlaceCloseTimer.current = null
+    }, 220)
+  }
+
+  const openSelectedPlace = (haunt: Haunt) => {
+    if (selectedPlaceCloseTimer.current !== null) {
+      window.clearTimeout(selectedPlaceCloseTimer.current)
+      selectedPlaceCloseTimer.current = null
+    }
+    setSelectedPlaceClosing(false)
+    setSelectedHauntId(haunt.id)
+    setSheetOpen(false)
+    const [lat, lng] = hauntLatLng(haunt.zone)
+    mapRef.current?.easeTo({
+      center: [lng, lat],
+      duration: 420,
+      essential: true,
+    })
+  }
+
   // Location is useful here, but it should never be a boot-time surprise. The
   // map is the first screen where asking for it has a clear explanation.
   useEffect(() => {
     void requestLocation()
   }, [requestLocation])
+
+  useEffect(
+    () => () => {
+      if (selectedPlaceCloseTimer.current !== null) {
+        window.clearTimeout(selectedPlaceCloseTimer.current)
+      }
+    },
+    [],
+  )
 
   syncMarkersRef.current = () => {
     const map = mapRef.current
@@ -471,7 +584,7 @@ export default function MapScreen() {
             haunt={h}
             isOwn={h.finderHandle === user.handle}
             position={position}
-            onOpen={() => navigate({ name: 'haunt', hauntId: h.id })}
+            onOpen={() => openSelectedPlace(h)}
           />
         ) : null
       })}
@@ -489,6 +602,15 @@ export default function MapScreen() {
             />
         ) : null
       })()}
+      {selectedHaunt && (
+        <SelectedPlaceCard
+          haunt={selectedHaunt}
+          isOwn={selectedHaunt.finderHandle === user.handle}
+          isClosing={selectedPlaceClosing}
+          onClose={closeSelectedPlace}
+          onOpen={() => navigate({ name: 'haunt', hauntId: selectedHaunt.id })}
+        />
+      )}
       <p className="pointer-events-none absolute right-3 bottom-[148px] z-10 text-[8px] tracking-wide text-white/45">
         {MAP_ATTRIBUTION} · Dumaguete City
       </p>

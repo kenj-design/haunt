@@ -1465,6 +1465,35 @@ audio {
     border-color 160ms ease;
 }
 
+.selected-place-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), transparent 31%),
+    linear-gradient(180deg, rgba(16, 18, 23, 0.94), rgba(7, 8, 11, 0.98));
+  backdrop-filter: blur(30px) saturate(1.28) contrast(1.02);
+  -webkit-backdrop-filter: blur(30px) saturate(1.28) contrast(1.02);
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform 260ms var(--ease-out),
+    opacity 180ms ease;
+}
+
+@starting-style {
+  .selected-place-card {
+    transform: translateY(calc(100% + 12px));
+    opacity: 0;
+  }
+}
+
+.selected-place-card.is-closing {
+  pointer-events: none;
+  transform: translateY(calc(100% + 12px));
+  opacity: 0;
+  transition:
+    transform 200ms var(--ease-out),
+    opacity 150ms ease;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .map-sheet-featured:hover {
     border-color: rgba(255, 255, 255, 0.16);
