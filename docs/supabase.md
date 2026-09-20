@@ -86,6 +86,8 @@ supabase/migrations/
                              would otherwise have handed out coordinates
   0008_security_hardening.sql  remaining direct writes removed; notification
                                updates narrowed to one authenticated RPC
+  0009_lock_anonymous_reads.sql  anonymous table endpoints removed for the
+                                remaining read-only tables
 ```
 
 `mockDataSource.ts` is the specification. When a rule is ambiguous — what a visit
