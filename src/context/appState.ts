@@ -90,6 +90,8 @@ export interface AppState {
   completeOnboarding: (handle: string) => Promise<boolean>
   /** Claims a handle early so onboarding can show availability before advancing. */
   claimOnboardingHandle: (handle: string) => Promise<string | null>
+  /** Signs into an existing account with its recovery code and reloads it. */
+  recoverWithCode: (code: string) => Promise<void>
   /** Asks for location only when a location-dependent screen is entered. */
   requestLocation: () => Promise<boolean>
   /**

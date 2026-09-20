@@ -26,11 +26,15 @@ import Stamp from '../components/Stamp'
 export default function SignIn({
   onStartFresh,
   onRecoverWithCode,
+  recoveryOnly = false,
+  onBack,
 }: {
   onStartFresh: () => Promise<void>
   onRecoverWithCode: (code: string) => Promise<void>
+  recoveryOnly?: boolean
+  onBack?: () => void
 }) {
-  const [mode, setMode] = useState<'choose' | 'code'>('choose')
+  const [mode, setMode] = useState<'choose' | 'code'>(recoveryOnly ? 'code' : 'choose')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +62,11 @@ export default function SignIn({
             <button
               type="button"
               onClick={() => {
-                setMode('choose')
+                if (recoveryOnly) {
+                  onBack?.()
+                } else {
+                  setMode('choose')
+                }
                 setError(null)
               }}
               className="onboarding-icon-button pressable flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-white/74"
@@ -77,7 +85,7 @@ export default function SignIn({
       </header>
 
       <main className="onboarding-step relative z-10 flex min-h-0 flex-1 flex-col">
-        {mode === 'choose' ? (
+        {mode === 'choose' && !recoveryOnly ? (
           <>
             <div className="onboarding-art">
               <Stamp slot="signIn" eager className="note-reveal w-[240px]" />
@@ -95,9 +103,34 @@ export default function SignIn({
               <PrimaryButton disabled={busy} onClick={() => void run(onStartFresh)}>
                 {busy ? 'opening…' : 'start here'}
               </PrimaryButton>
-              <PrimaryButton variant="ghost" disabled={busy} onClick={() => setMode('code')}>
-                I have a recovery code
-              </PrimaryButton>
+              <div className="mt-2">
+                <p className="mb-2 text-center text-[11px] text-white/38">
+                  already have a recovery code?
+                </p>
+                <div className="onboarding-field flex items-center rounded-[20px] px-4 py-3.5">
+                  <input
+                    value={code}
+                    aria-label="recovery code"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="text"
+                    placeholder="XXXX-XXXX-XXXX-XXXX"
+                    onChange={(event) =>
+                      setCode(formatRecoveryCode(normalizeRecoveryCode(event.target.value)))
+                    }
+                    className="w-full bg-transparent text-center font-mono text-[15px] tracking-[0.08em] text-white placeholder:text-white/22"
+                  />
+                </div>
+                {error && <p className="fade-in mt-2 text-center text-[11px] text-fof">{error}</p>}
+                <PrimaryButton
+                  variant="ghost"
+                  disabled={!ready || busy}
+                  onClick={() => void run(() => onRecoverWithCode(code))}
+                >
+                  {busy ? 'looking…' : 'use recovery code'}
+                </PrimaryButton>
+              </div>
             </div>
           </>
         ) : (

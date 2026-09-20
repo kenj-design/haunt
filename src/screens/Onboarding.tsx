@@ -30,6 +30,11 @@ import Stamp from '../components/Stamp'
 import ShareStory from '../components/ShareStory'
 import { inviteLabel, inviteLink } from '../lib/invite'
 import { stringSeed } from '../lib/seed'
+import {
+  formatRecoveryCode,
+  isRecoveryCodeComplete,
+  normalizeRecoveryCode,
+} from '../lib/recoveryCode'
 
 /* Location is a real browser permission, so it has to be requested from a user
  * gesture. Keeping this step in the narrative makes the privacy tradeoff legible
@@ -50,10 +55,14 @@ export default function Onboarding() {
     sendFriendRequest,
     requestLocation,
     location,
+    recoverWithCode,
   } = useApp()
   const [step, setStep] = useState(initialStep)
   const [handle, setHandle] = useState('')
   const [query, setQuery] = useState('')
+  const [recoveryCode, setRecoveryCode] = useState('')
+  const [recoveryBusy, setRecoveryBusy] = useState(false)
+  const [recoveryError, setRecoveryError] = useState('')
   /** Handles to ask about, sent for real once this handle is actually claimed. */
   const [invites, setInvites] = useState<string[]>([])
   const [shareStatus, setShareStatus] = useState('')
@@ -71,9 +80,6 @@ export default function Onboarding() {
     typedHandle.length >= 3 &&
     typedHandle !== handle.trim().toLowerCase() &&
     !invites.includes(typedHandle)
-
-
-
 
   const copyInvite = async () => {
     try {
@@ -117,6 +123,18 @@ export default function Onboarding() {
       return
     }
     setStep(5)
+  }
+
+  const recover = async () => {
+    if (!isRecoveryCodeComplete(recoveryCode) || recoveryBusy) return
+    setRecoveryBusy(true)
+    setRecoveryError('')
+    try {
+      await recoverWithCode(recoveryCode)
+    } catch (cause) {
+      setRecoveryError(cause instanceof Error ? cause.message : "that code doesn't open anything")
+      setRecoveryBusy(false)
+    }
   }
 
   const allowLocation = async () => {
@@ -179,7 +197,38 @@ export default function Onboarding() {
               there to read it.
             </p>
             <div className="onboarding-actions">
-              <PrimaryButton onClick={() => setStep(2)}>how it works</PrimaryButton>
+              <PrimaryButton onClick={() => setStep(2)}>get started</PrimaryButton>
+              <div className="mt-2">
+                <p className="mb-2 text-center text-[11px] text-white/38">
+                  already have a recovery code?
+                </p>
+                <div className="onboarding-field flex items-center rounded-[20px] px-4 py-3.5">
+                  <input
+                    value={recoveryCode}
+                    aria-label="recovery code"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="text"
+                    placeholder="XXXX-XXXX-XXXX-XXXX"
+                    onChange={(event) => {
+                      setRecoveryCode(formatRecoveryCode(normalizeRecoveryCode(event.target.value)))
+                      setRecoveryError('')
+                    }}
+                    className="w-full bg-transparent text-center font-mono text-[15px] tracking-[0.08em] text-white placeholder:text-white/22"
+                  />
+                </div>
+                {recoveryError && (
+                  <p className="fade-in mt-2 text-center text-[11px] text-fof">{recoveryError}</p>
+                )}
+                <PrimaryButton
+                  variant="ghost"
+                  disabled={!isRecoveryCodeComplete(recoveryCode) || recoveryBusy}
+                  onClick={() => void recover()}
+                >
+                  {recoveryBusy ? 'bringing it here…' : 'use recovery code'}
+                </PrimaryButton>
+              </div>
             </div>
           </OnboardingStep>
         )}
