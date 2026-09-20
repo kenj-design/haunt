@@ -101,36 +101,11 @@ export default function SignIn({
 
             <div className="onboarding-actions">
               <PrimaryButton disabled={busy} onClick={() => void run(onStartFresh)}>
-                {busy ? 'opening…' : 'start here'}
+                {busy ? 'opening…' : 'start haunting'}
               </PrimaryButton>
-              <div className="mt-2">
-                <p className="mb-2 text-center text-[11px] text-white/38">
-                  already have a recovery code?
-                </p>
-                <div className="onboarding-field flex items-center rounded-[20px] px-4 py-3.5">
-                  <input
-                    value={code}
-                    aria-label="recovery code"
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    inputMode="text"
-                    placeholder="XXXX-XXXX-XXXX-XXXX"
-                    onChange={(event) =>
-                      setCode(formatRecoveryCode(normalizeRecoveryCode(event.target.value)))
-                    }
-                    className="w-full bg-transparent text-center font-mono text-[15px] tracking-[0.08em] text-white placeholder:text-white/22"
-                  />
-                </div>
-                {error && <p className="fade-in mt-2 text-center text-[11px] text-fof">{error}</p>}
-                <PrimaryButton
-                  variant="ghost"
-                  disabled={!ready || busy}
-                  onClick={() => void run(() => onRecoverWithCode(code))}
-                >
-                  {busy ? 'looking…' : 'use recovery code'}
-                </PrimaryButton>
-              </div>
+              <PrimaryButton variant="ghost" disabled={busy} onClick={() => setMode('code')}>
+                use recovery code
+              </PrimaryButton>
             </div>
           </>
         ) : (
