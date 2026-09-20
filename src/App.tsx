@@ -18,6 +18,8 @@ import Profile from './screens/Profile'
 import Notifications from './screens/Notifications'
 import PhoneFrame from './components/PhoneFrame'
 import SaveRecoveryCode from './screens/SaveRecoveryCode'
+import DesignPreview from './screens/DesignPreview'
+import SignIn from './screens/SignIn'
 
 function TabBar() {
   const { tab, setTab, screen } = useApp()
@@ -96,6 +98,21 @@ function RecoveryCodeScreen() {
   )
 }
 
+function RecoveryPreviewScreen() {
+  const { goBack } = useApp()
+  return (
+    <SaveRecoveryCode
+      createCode={async () => 'HAUN-TDES-IGN0-0001'}
+      onDone={goBack}
+    />
+  )
+}
+
+function SignInPreviewScreen() {
+  const { goBack } = useApp()
+  return <SignIn onStartFresh={async () => goBack()} onRecoverWithCode={async () => goBack()} />
+}
+
 function Router() {
   const { screen } = useApp()
   switch (screen.name) {
@@ -117,6 +134,12 @@ function Router() {
       return <Notifications />
     case 'recovery':
       return <RecoveryCodeScreen />
+    case 'design':
+      return <DesignPreview />
+    case 'recovery-preview':
+      return <RecoveryPreviewScreen />
+    case 'sign-in-preview':
+      return <SignInPreviewScreen />
   }
 }
 

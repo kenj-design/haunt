@@ -25,7 +25,6 @@ import { isHauntActive } from '../domain'
 import type { Haunt } from '../domain'
 import {
   MAP_BEARING,
-  MAP_BOUNDS,
   MAP_CENTER,
   MAP_DEFAULT_ZOOM,
   MAP_MAX_ZOOM,
@@ -225,6 +224,7 @@ export default function MapScreen() {
     clearFocusHaunt,
     notificationsUnread,
     user,
+    location,
     requestLocation,
   } = useApp()
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -241,6 +241,9 @@ export default function MapScreen() {
   // --- native map pan + zoom ---
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const initialMapCenterRef = useRef<[number, number]>(
+    location ? [location.lat, location.lng] : MAP_CENTER,
+  )
   const hauntsRef = useRef(haunts)
   const syncMarkersRef = useRef<() => void>(() => undefined)
   const [markerPositions, setMarkerPositions] = useState<Record<string, MarkerPosition>>({})
@@ -263,7 +266,7 @@ export default function MapScreen() {
     setSelectedPlaceClosing(false)
     setSelectedHauntId(haunt.id)
     setSheetOpen(false)
-    const [lat, lng] = hauntLatLng(haunt.zone)
+    const [lat, lng] = hauntLatLng(haunt.zone, location ? [location.lat, location.lng] : undefined)
     mapRef.current?.easeTo({
       center: [lng, lat],
       duration: 420,
@@ -271,11 +274,19 @@ export default function MapScreen() {
     })
   }
 
-  // Location is useful here, but it should never be a boot-time surprise. The
-  // map is the first screen where asking for it has a clear explanation.
+  // A reload forgets the in-memory fix. Restore it silently only when the
+  // browser already says permission is granted; the onboarding CTA remains the
+  // only path that can turn a fresh permission prompt into a surprise.
   useEffect(() => {
-    void requestLocation()
-  }, [requestLocation])
+    if (location || typeof navigator === 'undefined' || !navigator.permissions) return
+    let active = true
+    void navigator.permissions.query({ name: 'geolocation' }).then((permission) => {
+      if (active && permission.state === 'granted') void requestLocation()
+    })
+    return () => {
+      active = false
+    }
+  }, [location, requestLocation])
 
   useEffect(
     () => () => {
@@ -294,7 +305,7 @@ export default function MapScreen() {
     const height = canvas.clientHeight
     const next: Record<string, MarkerPosition> = {}
     hauntsRef.current.forEach((haunt) => {
-      const [lat, lng] = hauntLatLng(haunt.zone)
+      const [lat, lng] = hauntLatLng(haunt.zone, location ? [location.lat, location.lng] : undefined)
       const point = map.project([lng, lat])
 
       // `project` still returns a coordinate for places that are beyond the
@@ -368,16 +379,12 @@ export default function MapScreen() {
         style: hauntMapStyle(),
         // MapLibre takes longitude first, and counts zoom one step coarser than
         // the 256 px-tile scale the rest of the app is written in.
-        center: [MAP_CENTER[1], MAP_CENTER[0]],
+        center: [initialMapCenterRef.current[1], initialMapCenterRef.current[0]],
         zoom: MAP_DEFAULT_ZOOM - 1,
         minZoom: MAP_MIN_ZOOM - 1,
         maxZoom: MAP_MAX_ZOOM - 1,
         pitch: MAP_PITCH,
         bearing: MAP_BEARING,
-        maxBounds: [
-          [MAP_BOUNDS[0][1], MAP_BOUNDS[0][0]],
-          [MAP_BOUNDS[1][1], MAP_BOUNDS[1][0]],
-        ],
         attributionControl: false,
         // The pitch is the point of the style, so let it be adjusted, but never
         // past the horizon: beyond ~60° the sky would need something in it.
@@ -432,8 +439,19 @@ export default function MapScreen() {
   }, [])
 
   useEffect(() => {
+    if (!location) return
+    mapRef.current?.flyTo({
+      center: [location.lng, location.lat],
+      zoom: MAP_DEFAULT_ZOOM - 1,
+      pitch: MAP_PITCH,
+      bearing: MAP_BEARING,
+      duration: 760,
+    })
+  }, [location])
+
+  useEffect(() => {
     syncMarkersRef.current()
-  }, [haunts, user.handle])
+  }, [haunts, user.handle, location])
 
   const zoomMap = (direction: 1 | -1) => {
     const map = mapRef.current
@@ -442,10 +460,13 @@ export default function MapScreen() {
     else map.zoomOut({ duration: 320 })
   }
 
-  /** Back to the city, and back to the angle the map is meant to be seen at. */
+  /** Back to the viewer's area, and back to the angle the map is meant to be seen at. */
   const recenterMap = () => {
+    const center: [number, number] = location
+      ? [location.lng, location.lat]
+      : [MAP_CENTER[1], MAP_CENTER[0]]
     mapRef.current?.flyTo({
-      center: [MAP_CENTER[1], MAP_CENTER[0]],
+      center,
       zoom: MAP_DEFAULT_ZOOM - 1,
       pitch: MAP_PITCH,
       bearing: MAP_BEARING,
@@ -569,7 +590,7 @@ export default function MapScreen() {
            position: relative on its container, which beats Tailwind's absolute
            and would leave inset-0 doing nothing at all. */
         className="haunt-map absolute inset-0 z-0 h-full w-full"
-        aria-label="Dumaguete City map. Drag to explore and pinch to zoom."
+        aria-label="Haunt map. Drag to explore and pinch to zoom."
       />
       {/* The reference map keeps the center readable and lets the edges fall
           away. This is deliberately softer than a full scrim so the local road
@@ -611,7 +632,7 @@ export default function MapScreen() {
         />
       )}
       <p className="pointer-events-none absolute right-3 bottom-[148px] z-10 text-[8px] tracking-wide text-white/45">
-        {MAP_ATTRIBUTION} · Dumaguete City
+        {MAP_ATTRIBUTION}
       </p>
 
       {/* top bar */}
@@ -620,7 +641,7 @@ export default function MapScreen() {
           <span className="app-title block text-white">Haunt</span>
         </div>
         <span className="glass-control absolute top-3 left-1/2 -translate-x-1/2 rounded-full px-3.5 py-1.5 text-[10px] font-medium tracking-[-0.01em] text-white/68">
-          Dumaguete
+          {location ? 'near you' : 'map'}
         </span>
         <button
           onClick={() => navigate({ name: 'notifications' })}
@@ -725,13 +746,15 @@ export default function MapScreen() {
       <div
         ref={sheetRef}
         className={`map-sheet absolute inset-x-0 bottom-0 rounded-t-[32px] border-t shadow-[0_-26px_70px_rgba(0,0,0,.5)] ${
+          selectedHaunt ? 'pointer-events-none opacity-0' : 'opacity-100'
+        } ${
           // The expanded sheet should own the foreground layer, covering the
           // floating map actions as it rises. Keep the selected place card
           // above it, though, so an already-open preview is not interrupted.
           sheetOpen || dragY !== null ? 'z-[58]' : 'z-20'
         } ${
           dragY === null
-              ? `transition-transform duration-450 [transition-timing-function:var(--ease-drawer)] ${
+              ? `transition-[transform,opacity] duration-450 [transition-timing-function:var(--ease-drawer)] ${
                 sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-112px)]'
               }`
             : ''

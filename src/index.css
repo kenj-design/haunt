@@ -404,12 +404,10 @@ audio {
 }
 
 .glass-header {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
-  background:
-    linear-gradient(180deg, rgba(13, 15, 20, 0.76), rgba(13, 15, 20, 0.35)),
-    rgba(8, 9, 12, 0.22);
-  backdrop-filter: blur(30px) saturate(1.32);
-  -webkit-backdrop-filter: blur(30px) saturate(1.32);
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .arrival-prompt {
@@ -2329,6 +2327,21 @@ input[type="range"] {
 .onboarding-art-small {
   height: 104px;
   margin-bottom: 18px;
+}
+
+.onboarding-location-mark {
+  display: flex;
+  width: 92px;
+  height: 92px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(133, 171, 255, 0.24);
+  border-radius: 30px;
+  color: rgba(191, 214, 255, 0.82);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(78, 132, 255, 0.3), transparent 48%),
+    linear-gradient(145deg, rgba(29, 67, 145, 0.3), rgba(8, 18, 37, 0.72));
+  box-shadow: 0 0 38px rgba(37, 99, 235, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* The onboarding marks are brushed into view across the canvas, then hold

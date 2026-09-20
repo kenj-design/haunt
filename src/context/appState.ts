@@ -18,6 +18,7 @@ import type {
   Keepsake,
   Notification,
 } from '../domain'
+import type { UserLocation } from '../lib/geo'
 
 export type Screen =
   | { name: 'map' }
@@ -28,6 +29,9 @@ export type Screen =
   | { name: 'drop' }
   | { name: 'notifications' }
   | { name: 'recovery' }
+  | { name: 'design' }
+  | { name: 'recovery-preview' }
+  | { name: 'sign-in-preview' }
   | { name: 'friend'; handle: string }
 
 export type Tab = 'map' | 'profile'
@@ -65,6 +69,8 @@ export interface AppState {
   /** Haunt the app thinks you walked past without logging. */
   missedVisitId: string | null
   notificationsUnread: boolean
+  /** The last browser position granted by the person, kept in memory only. */
+  location: UserLocation | null
 
   // --- request state ---
   /** True while any mutation is in flight. */

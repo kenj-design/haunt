@@ -1,11 +1,10 @@
 /**
  * The one place that knows how Haunt's abstract zone plane meets real geography.
  *
- * The prototype stores each zone as an `x`/`y` pair in 0–100 space and fakes
- * coordinates by projecting that square onto a patch of Dumaguete. Real data
- * arrives as latitude/longitude, so when the API lands, `zoneToLatLng` and
- * `latLngToZone` collapse into passthroughs and everything else here still
- * holds. Nothing outside this module should hardcode a coordinate or tile URL.
+ * The prototype stores each zone as an `x`/`y` pair in 0–100 space. Real data
+ * arrives as latitude/longitude, while mock data is projected around the
+ * viewer's position (Dumaguete remains the no-permission fallback). Nothing
+ * outside this module should hardcode a coordinate or tile URL.
  */
 
 import type { HauntZone } from '../domain'
@@ -24,6 +23,34 @@ export const TILE_ATTRIBUTION = 'Tiles © Esri'
 
 /** The prototype is set in Dumaguete City, Philippines. */
 export const MAP_CENTER: [number, number] = [9.3015, 123.3054]
+
+export interface UserLocation {
+  lat: number
+  lng: number
+  accuracyM?: number
+}
+
+/**
+ * Reads the browser's position without turning permission into a boot-time
+ * surprise. Callers decide when the explanation and CTA have been shown.
+ */
+export function requestUserLocation(options: PositionOptions): Promise<UserLocation | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracyM: Number.isFinite(position.coords.accuracy)
+            ? position.coords.accuracy
+            : undefined,
+        }),
+      () => resolve(null),
+      options,
+    )
+  })
+}
 
 /*
  * Zoom levels are in the 256 px-tile scale — the one `metresPerPixel` below is
@@ -80,7 +107,10 @@ type PlanePoint = Pick<HauntZone, 'x' | 'y'>
 
 const clampToPlane = (value: number) => Math.max(ZONE_MIN, Math.min(ZONE_MAX, value))
 
-export function zoneToLatLng(zone: PlanePoint): [number, number] {
+export function zoneToLatLng(zone: PlanePoint, around?: [number, number]): [number, number] {
+  if (around) {
+    return [around[0] + (50 - zone.y) * PLANE_LAT_STEP, around[1] + (zone.x - 50) * PLANE_LNG_STEP]
+  }
   return [PLANE_ORIGIN_LAT - zone.y * PLANE_LAT_STEP, PLANE_ORIGIN_LNG + zone.x * PLANE_LNG_STEP]
 }
 
@@ -98,11 +128,11 @@ export function latLngToZone(latitude: number, longitude: number): PlanePoint {
  * position is projected onto Dumaguete. Every map surface goes through here, so
  * both backends render without knowing which one is running.
  */
-export function hauntLatLng(zone: HauntZone): [number, number] {
+export function hauntLatLng(zone: HauntZone, around?: [number, number]): [number, number] {
   if (typeof zone.lat === 'number' && typeof zone.lng === 'number') {
     return [zone.lat, zone.lng]
   }
-  return zoneToLatLng(zone)
+  return zoneToLatLng(zone, around)
 }
 
 /** Nudges a zone within the plane, for keyboard placement. */
@@ -266,18 +296,26 @@ export function zoneDiameterPx(
 
 /** Fixed zoom level of the still tile used as stand-in artwork. */
 const PREVIEW_TILE_ZOOM = 15
-const PREVIEW_TILE_ORIGIN_X = 27604
-const PREVIEW_TILE_ORIGIN_Y = 15527
-const PREVIEW_TILE_SPAN_X = 7
-const PREVIEW_TILE_SPAN_Y = 10
 
 /**
  * A single satellite tile near the zone, used as placeholder artwork for haunts
  * with no photo. Replace with a real thumbnail once media lives in storage.
  */
-export function zonePreviewTileUrl(zone: PlanePoint): string {
-  const tileX = PREVIEW_TILE_ORIGIN_X + Math.round((zone.x / 100) * PREVIEW_TILE_SPAN_X)
-  const tileY = PREVIEW_TILE_ORIGIN_Y + Math.round((zone.y / 100) * PREVIEW_TILE_SPAN_Y)
+export function zonePreviewTileUrl(
+  zone: Pick<HauntZone, 'x' | 'y' | 'lat' | 'lng'>,
+  around?: [number, number],
+): string {
+  const coordinates =
+    typeof zone.lat === 'number' && typeof zone.lng === 'number'
+      ? [zone.lat, zone.lng] as [number, number]
+      : zoneToLatLng(zone, around)
+  const [latitude, longitude] = coordinates
+  const worldTiles = 2 ** PREVIEW_TILE_ZOOM
+  const tileX = Math.floor(((longitude + 180) / 360) * worldTiles)
+  const latitudeRadians = (latitude * Math.PI) / 180
+  const tileY = Math.floor(
+    ((1 - Math.asinh(Math.tan(latitudeRadians)) / Math.PI) / 2) * worldTiles,
+  )
   return TILE_URL_TEMPLATE.replace('{z}', String(PREVIEW_TILE_ZOOM))
     .replace('{y}', String(tileY))
     .replace('{x}', String(tileX))

@@ -23,6 +23,7 @@ import type {
   Keepsake,
   Notification,
 } from '../domain'
+import type { UserLocation } from '../lib/geo'
 
 /**
  * Everything the app needs to render, in one round trip.
@@ -45,6 +46,12 @@ export interface AppSnapshot {
   /** Whether this person has claimed a handle yet. */
   onboarded: boolean
   notificationsUnread: boolean
+}
+
+export interface LocationRequestResult {
+  snapshot: AppSnapshot
+  /** Null means the person denied location or the browser could not provide it. */
+  location: UserLocation | null
 }
 
 /** Logging a visit touches the haunt, the visitor's counters, and their keepsakes. */
@@ -113,7 +120,7 @@ export interface HauntDataSource {
    * then refreshes the snapshot with distance and proximity data when a fix is
    * available. A denied or unavailable position is still a valid snapshot.
    */
-  requestLocation(): Promise<AppSnapshot>
+  requestLocation(): Promise<LocationRequestResult>
 
   /**
    * Claims a handle and marks this person onboarded.

@@ -33,6 +33,7 @@ import type {
   VisitResult,
 } from './dataSource'
 import { localId } from '../lib/id'
+import { requestUserLocation } from '../lib/geo'
 
 /** Bump when the stored shape changes; an older payload is then ignored. */
 const STORAGE_KEY = 'haunt.mock-db.v1'
@@ -157,8 +158,13 @@ export function createMockDataSource(options: MockDataSourceOptions = {}): Haunt
       return call(() => structuredClone(store))
     },
 
-    requestLocation() {
-      return call(() => structuredClone(store))
+    async requestLocation() {
+      const location = await requestUserLocation({
+        enableHighAccuracy: false,
+        timeout: 8_000,
+        maximumAge: 60_000,
+      })
+      return call(() => ({ snapshot: structuredClone(store), location }))
     },
 
     completeOnboarding(handle) {

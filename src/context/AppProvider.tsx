@@ -8,6 +8,7 @@ import type { AuthGateway } from '../data/auth'
 import { createDataSource, toDataError } from '../data'
 import type { AppSnapshot, HauntDataSource } from '../data'
 import type { Haunt, HauntDraft } from '../domain'
+import type { UserLocation } from '../lib/geo'
 import { AppContext } from './appState'
 import type { AppState, Screen, Tab } from './appState'
 
@@ -79,6 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [needsRecoveryCode, setNeedsRecoveryCode] = useState(false)
   const [hasAccounts, setHasAccounts] = useState(false)
+  const [location, setLocation] = useState<UserLocation | null>(null)
 
   const [tab, setTabState] = useState<Tab>('map')
   const [stack, setStack] = useState<Screen[]>([{ name: 'map' }])
@@ -222,15 +224,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutate, source, previewOnboarding],
   )
 
-  const requestLocation = useCallback(
-    () =>
-      mutate(
-        () => source().requestLocation(),
-        (next) => next,
-        "couldn't get your location",
-      ),
-    [mutate, source],
-  )
+  const requestLocation = useCallback(async () => {
+    setPendingCount((count) => count + 1)
+    setError(null)
+    try {
+      const result = await source().requestLocation()
+      setSnapshot(result.snapshot)
+      setLocation(result.location)
+      return result.location !== null
+    } catch (cause) {
+      setError(toDataError(cause, "couldn't get your location").message)
+      return false
+    } finally {
+      setPendingCount((count) => count - 1)
+    }
+  }, [source])
 
   // --- haunts ---------------------------------------------------------------
 
@@ -414,6 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       focusHauntId,
       missedVisitId: snapshot.missedVisitId,
       notificationsUnread: snapshot.notificationsUnread,
+      location,
       needsRecoveryCode,
       hasAccounts,
       createRecoveryCode,
@@ -445,6 +454,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     stack,
     tab,
     focusHauntId,
+    location,
     pendingCount,
     error,
     dismissError,

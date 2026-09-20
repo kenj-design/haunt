@@ -36,6 +36,7 @@ import { inviteLabel } from '../lib/invite'
 import { stringSeed } from '../lib/seed'
 import ArrivalNoteComposer from '../components/ArrivalNoteComposer'
 import { HoldToRelease } from '../components/ShroudRitual'
+import LocationPickerMap from '../components/LocationPickerMap'
 import { GRADIENT_SWATCHES, VIBE_TAGS } from '../domain'
 import type { Haunt, HauntDraft } from '../domain'
 import { zonePreviewTileUrl } from '../lib/geo'
@@ -62,19 +63,20 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 /**
  * Where the haunt gets left.
  *
- * Fixed for now — `DumaguetePickerMap` in `components/unwired/` is the real
- * picker, waiting on a device location to centre itself on.
+ * The backend records the browser position when the drop lands. The mock also
+ * keeps that position on the local haunt so the prototype works away from the
+ * fixture city.
  */
 const DEFAULT_ZONE_POINT = { x: 44, y: 44 }
 
-function zoneTileStyle(zone: { x: number; y: number }) {
+function zoneTileStyle(zone: { x: number; y: number; lat?: number; lng?: number }) {
   return {
     backgroundImage: `linear-gradient(145deg, rgba(35,44,54,.12), rgba(4,7,12,.62)), url(${zonePreviewTileUrl(zone)})`,
   }
 }
 
 export default function DropHaunt() {
-  const { goBack, navigate, dropHaunt, friends, user, isBusy, requestLocation } = useApp()
+  const { goBack, navigate, dropHaunt, friends, user, isBusy, location, requestLocation } = useApp()
   const scrollRef = useRef<HTMLDivElement>(null)
   const photoUrlsRef = useRef<string[]>([])
   const submittedRef = useRef(false)
@@ -93,16 +95,19 @@ export default function DropHaunt() {
   const [whosHere, setWhosHere] = useState<string[]>([])
   const [askGroup, setAskGroup] = useState(false)
   const [zonePoint] = useState(DEFAULT_ZONE_POINT)
+  const [manualLocation, setManualLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const selectedLocation = location ?? manualLocation
 
   useLayoutEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
   }, [])
 
-  // Ask when the person chooses to leave a place, not while the app is still
-  // explaining itself. The cached result is reused by the final drop.
+  // A haunt is a real place, so keep the location trigger here as well. In the
+  // normal first-run flow the onboarding step has already explained the why;
+  // returning users still get the browser prompt when they choose to drop.
   useEffect(() => {
-    void requestLocation()
-  }, [requestLocation])
+    if (!location) void requestLocation()
+  }, [location, requestLocation])
 
   useEffect(() => {
     photoUrlsRef.current = photoUrls
@@ -155,7 +160,7 @@ export default function DropHaunt() {
     setPhotoError(error)
   }
 
-  const canSubmit = name.trim().length > 0
+  const canSubmit = name.trim().length > 0 && selectedLocation !== null
 
   const goBackFromDrop = (_event: MouseEvent<HTMLButtonElement>) => {
     if (askGroup) {
@@ -179,7 +184,12 @@ export default function DropHaunt() {
       arrivalNote: hasAudioNote ? '' : typedNote,
       arrivalNoteAudioUrl: arrivalNoteAudioUrl ?? undefined,
       arrivalNoteAudioDuration: hasAudioNote ? arrivalNoteAudioDuration : undefined,
-      zone: { ...zonePoint, radiusM: radius },
+      zone: {
+        ...zonePoint,
+        radiusM: radius,
+        lat: selectedLocation?.lat,
+        lng: selectedLocation?.lng,
+      },
       lifespan: 'lasting',
       // Shared on arrival rather than kept private: a haunt nobody can see does
       // nothing, and an alpha with an empty map reads as broken rather than
@@ -319,12 +329,16 @@ export default function DropHaunt() {
 
           <section className="notes-section notes-zone-section" aria-labelledby="zone-heading">
             <div className="notes-zone-row">
-              <span className="notes-zone-thumb" style={zoneTileStyle(zonePoint)} aria-hidden="true">
+              <span
+                className="notes-zone-thumb"
+                style={zoneTileStyle({ ...zonePoint, lat: selectedLocation?.lat, lng: selectedLocation?.lng })}
+                aria-hidden="true"
+              >
                 <MapPin size={15} strokeWidth={1.55} />
               </span>
               <span className="notes-zone-copy">
                 <span id="zone-heading" className="notes-zone-title">
-                  Dumaguete · {radius}m zone
+                  {location ? 'near you' : selectedLocation ? 'chosen on map' : 'choose a place'} · {radius}m zone
                 </span>
                 <span className="notes-zone-subtext">friends see this area, not the exact spot</span>
               </span>
@@ -337,6 +351,18 @@ export default function DropHaunt() {
                 edit
               </button>
             </div>
+            {!location && (
+              <>
+                <p className="mt-3 text-[11px] leading-[1.45] text-white/42">
+                  location access is off — drag anywhere in the world and tap the map to place this haunt.
+                </p>
+                <LocationPickerMap
+                  location={manualLocation}
+                  radius={radius}
+                  onChange={setManualLocation}
+                />
+              </>
+            )}
             {zoneEditing && (
               <div className="notes-zone-editor">
                 <div className="notes-zone-editor-heading">
@@ -427,10 +453,14 @@ export default function DropHaunt() {
               onRelease={drop}
               actionLabel="hold to add the haunt"
               releasedLabel="added"
-              disabledLabel="name the place first"
+              disabledLabel={name.trim().length === 0 ? 'name the place first' : 'choose a place first'}
               disabledSubtext="then hold to add"
               actionAriaLabel="Press and hold the fog orb to add this haunt"
-              disabledAriaLabel="Name the place first to add this haunt"
+              disabledAriaLabel={
+                name.trim().length === 0
+                  ? 'Name the place first to add this haunt'
+                  : 'Choose a place first to add this haunt'
+              }
             />
           </div>
         </main>

@@ -84,6 +84,8 @@ supabase/migrations/
   0007_alpha_visibility.sql  every shared haunt on every map, as fog — and the
                              client's table access revoked, because that widening
                              would otherwise have handed out coordinates
+  0008_security_hardening.sql  remaining direct writes removed; notification
+                               updates narrowed to one authenticated RPC
 ```
 
 `mockDataSource.ts` is the specification. When a rule is ambiguous — what a visit
@@ -216,8 +218,9 @@ involved, a policy is enough.
 5. Restart the dev server. Vite reads `.env.local` at startup only.
 
 The anon key ships inside the client bundle. That is safe **only** because RLS is
-enabled on every table — the key identifies the app, and the signed-in user's JWT
-decides what they can reach. If RLS were ever disabled on a table, that key
+enabled on every table and direct grants are kept narrow — the key identifies the
+app, and the signed-in user's JWT decides what they can reach. If RLS were ever
+disabled on a table, or a broad grant were added back, that key
 becomes a public door to it.
 
 ## Accounts

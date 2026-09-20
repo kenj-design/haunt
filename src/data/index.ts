@@ -16,6 +16,7 @@ export type {
   DropResult,
   FriendRequestResult,
   HauntDataSource,
+  LocationRequestResult,
   PassResult,
   VisitResult,
 } from './dataSource'

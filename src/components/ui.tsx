@@ -50,8 +50,11 @@ type VibeMeshStyle = CSSProperties & {
  * keeps the card looking like a place rather than an empty slot. Once media
  * lives in object storage this reads a real thumbnail URL instead.
  */
-export function hauntArtworkStyle(haunt: Pick<Haunt, 'photoUrls' | 'zone'>): CSSProperties {
-  const image = haunt.photoUrls[0] ?? zonePreviewTileUrl(haunt.zone)
+export function hauntArtworkStyle(
+  haunt: Pick<Haunt, 'photoUrls' | 'zone'>,
+  around?: [number, number],
+): CSSProperties {
+  const image = haunt.photoUrls[0] ?? zonePreviewTileUrl(haunt.zone, around)
   const scrim = haunt.photoUrls[0]
     ? 'rgba(0,0,0,.72), rgba(0,0,0,.08)'
     : 'rgba(0,0,0,.74), rgba(0,0,0,.12)'
@@ -205,10 +208,10 @@ export function ScreenHeader({
             serif
               ? 'font-serif text-[21px] text-ink'
               : 'text-[17px] font-semibold tracking-[-0.025em] text-ink'
-          }
-        >
-          {title}
-        </h1>
+        }
+      >
+        {title}
+      </h1>
       )}
       {right && <div className="ml-auto">{right}</div>}
     </header>

@@ -7,7 +7,7 @@
  * haunts reach you by being passed, never by being browsed.
  */
 import { useMemo, useState } from 'react'
-import { Check, Clock, KeyRound, Share, UserRoundPlus, X } from 'lucide-react'
+import { Check, Clock, KeyRound, LayoutGrid, RefreshCw, Share, UserRoundPlus, X } from 'lucide-react'
 import { useApp } from '../context/appState'
 import { Avatar, ScreenHeader, VibePill } from '../components/ui'
 import Stamp from '../components/Stamp'
@@ -54,6 +54,12 @@ export default function Profile({
     const handle = askHandle.trim()
     if (!handle || isBusy) return
     if (await sendFriendRequest(handle)) setAskHandle('')
+  }
+
+  const replayOnboarding = () => {
+    const params = new URLSearchParams(window.location.search)
+    params.set('onboarding', '1')
+    window.location.assign(`${window.location.pathname}?${params.toString()}${window.location.hash}`)
   }
   const friend = variant === 'friend' ? friends.find((f) => f.handle === handle) : null
   const shown = friend
@@ -258,6 +264,44 @@ export default function Profile({
               )}
             </div>
           )}
+
+          <div className="mt-8 px-5">
+            <p className="text-[14px] font-medium tracking-[-0.015em] text-ink-2">Experience</p>
+            <button
+              type="button"
+              onClick={replayOnboarding}
+              className="premium-card mt-3 flex w-full pressable cursor-pointer items-center gap-3 rounded-[22px] px-4 py-3.5 text-left transition-colors duration-200 hover:bg-white/[0.09]"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.055] text-white/68">
+                <RefreshCw size={14} strokeWidth={1.5} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-medium text-ink">Replay onboarding</span>
+                <span className="mt-0.5 block text-[10px] text-ink-3">
+                  walk through the intro again without clearing your places
+                </span>
+              </span>
+              <span className="shrink-0 text-[11px] text-ink-3">open →</span>
+            </button>
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={() => navigate({ name: 'design' })}
+                className="premium-card mt-2 flex w-full pressable cursor-pointer items-center gap-3 rounded-[22px] px-4 py-3.5 text-left transition-colors duration-200 hover:bg-white/[0.09]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.055] text-white/68">
+                  <LayoutGrid size={14} strokeWidth={1.5} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-ink">Screen tour</span>
+                  <span className="mt-0.5 block text-[10px] text-ink-3">
+                    inspect every flow and illustration state
+                  </span>
+                </span>
+                <span className="shrink-0 text-[11px] text-ink-3">open →</span>
+              </button>
+            )}
+          </div>
 
           <div className="mt-8 px-5">
             <div className="flex items-baseline justify-between gap-3">

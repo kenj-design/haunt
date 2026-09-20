@@ -1,16 +1,15 @@
 /**
- * The way in: five steps from cold open to a claimed handle.
+ * The way in: six steps from cold open to a claimed handle.
  *
  * Every step is laid out the same way — a fixed art zone, copy that begins at
- * the same height on all five, actions pinned to the bottom — so advancing does
+ * the same height on all six, actions pinned to the bottom — so advancing does
  * not move the furniture around. The two narrative steps get the art at full
  * size; the three that ask for something get a smaller mark, so a form still has
  * room to be a form.
  *
  * Nothing here mimes an interaction. The handle is claimed for real, the
- * invitations become real friend requests once it is, and the step that asked
- * for permissions the web build cannot use is gone — see
- * `components/unwired/PermissionSteps.tsx`.
+ * invitations become real friend requests once it is. Location is requested only
+ * after its purpose is explained, from the CTA on its own step.
  *
  * `?onboarding=1` replays this without clearing anything else, for looking at it
  * again without resetting the app.
@@ -21,6 +20,7 @@ import {
   Check,
   Image as ImageIcon,
   Link2,
+  LocateFixed,
   UserRoundPlus,
   X,
 } from 'lucide-react'
@@ -31,22 +31,27 @@ import ShareStory from '../components/ShareStory'
 import { inviteLabel, inviteLink } from '../lib/invite'
 import { stringSeed } from '../lib/seed'
 
-/*
- * Five, not six. The permissions step is gone from the web build: location is
- * asked for at the moment it is needed anyway, and nothing sends a notification
- * yet. Its UI is kept whole in `components/unwired/PermissionSteps.tsx` for the
- * native app.
- */
-const TOTAL_STEPS = 5
+/* Location is a real browser permission, so it has to be requested from a user
+ * gesture. Keeping this step in the narrative makes the privacy tradeoff legible
+ * before the browser's own modal appears. */
+const TOTAL_STEPS = 6
+
+function initialStep() {
+  if (typeof window === 'undefined') return 1
+  const value = Number(new URLSearchParams(window.location.search).get('step'))
+  return Number.isInteger(value) && value >= 1 && value <= TOTAL_STEPS ? value : 1
+}
 
 export default function Onboarding() {
-  const { completeOnboarding, navigate, sendFriendRequest } = useApp()
-  const [step, setStep] = useState(1)
+  const { completeOnboarding, navigate, sendFriendRequest, requestLocation, location } = useApp()
+  const [step, setStep] = useState(initialStep)
   const [handle, setHandle] = useState('')
   const [query, setQuery] = useState('')
   /** Handles to ask about, sent for real once this handle is actually claimed. */
   const [invites, setInvites] = useState<string[]>([])
   const [shareStatus, setShareStatus] = useState('')
+  const [locationBusy, setLocationBusy] = useState(false)
+  const [locationMessage, setLocationMessage] = useState('')
 
   const claimed = handle.trim().length >= 3
   // `?add=` is read back on boot and turned into a real request to know them.
@@ -90,6 +95,22 @@ export default function Onboarding() {
       await sendFriendRequest('@' + invite)
     }
     if (dropFirst) navigate({ name: 'drop' })
+  }
+
+  const allowLocation = async () => {
+    if (location) {
+      setStep(4)
+      return
+    }
+    setLocationBusy(true)
+    setLocationMessage('')
+    const allowed = await requestLocation()
+    setLocationBusy(false)
+    if (allowed) {
+      setStep(4)
+    } else {
+      setLocationMessage('we could not use your location. you can enable it later in your browser settings.')
+    }
   }
 
   return (
@@ -165,6 +186,39 @@ export default function Onboarding() {
         {step === 3 && (
           <OnboardingStep key={3}>
             <div className="onboarding-art onboarding-art-small">
+              <div className="onboarding-location-mark">
+                <LocateFixed size={38} strokeWidth={1.2} />
+              </div>
+            </div>
+            <h1 className="text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
+              Let Haunt find the places around you.
+            </h1>
+            <p className="mt-3 text-[15px] leading-[1.5] text-white/52">
+              We use your location to show nearby haunts and to know when you are
+              standing inside a fogged zone. Your exact position stays private —
+              friends only see the area around a haunt.
+            </p>
+            {locationMessage && (
+              <p className="mt-4 text-[11px] leading-[1.45] text-white/44">{locationMessage}</p>
+            )}
+            <div className="onboarding-actions">
+              <PrimaryButton onClick={() => void allowLocation()} disabled={locationBusy}>
+                {locationBusy ? 'finding you…' : location ? 'location is on' : 'use my location'}
+              </PrimaryButton>
+              <button
+                type="button"
+                onClick={() => setStep(4)}
+                className="pressable min-h-10 w-full cursor-pointer text-[12px] text-white/38 transition-colors duration-200 hover:text-white/64"
+              >
+                not now
+              </button>
+            </div>
+          </OnboardingStep>
+        )}
+
+        {step === 4 && (
+          <OnboardingStep key={4}>
+            <div className="onboarding-art onboarding-art-small">
               <div className="onboarding-stamp-print">
                 <Stamp slot="onboardName" tilt={1.5} className="w-[112px] aspect-square" />
               </div>
@@ -197,15 +251,15 @@ export default function Onboarding() {
               )}
             </div>
             <div className="onboarding-actions">
-              <PrimaryButton onClick={() => claimed && setStep(4)} disabled={!claimed}>
+              <PrimaryButton onClick={() => claimed && setStep(5)} disabled={!claimed}>
                 claim this name
               </PrimaryButton>
             </div>
           </OnboardingStep>
         )}
 
-        {step === 4 && (
-          <OnboardingStep key={4}>
+        {step === 5 && (
+          <OnboardingStep key={5}>
             <div className="onboarding-art onboarding-art-small">
               <div className="onboarding-stamp-print">
                 <Stamp slot="onboardInvite" tilt={-1.6} className="w-[132px] aspect-square" />
@@ -294,14 +348,14 @@ export default function Onboarding() {
               ))}
             </div>
             <div className="onboarding-actions">
-              <PrimaryButton onClick={() => setStep(5)}>
+              <PrimaryButton onClick={() => setStep(6)}>
                 {invites.length > 0
                   ? `ask ${invites.length} ${invites.length === 1 ? 'person' : 'people'}`
                   : 'bring a friend'}
               </PrimaryButton>
               <button
                 type="button"
-                onClick={() => setStep(5)}
+                onClick={() => setStep(6)}
                 className="pressable min-h-10 w-full cursor-pointer text-[12px] text-white/38 transition-colors duration-200 hover:text-white/64"
               >
                 do this later
@@ -310,8 +364,8 @@ export default function Onboarding() {
           </OnboardingStep>
         )}
 
-        {step === 5 && (
-          <OnboardingStep key={5}>
+        {step === 6 && (
+          <OnboardingStep key={6}>
             <div className="onboarding-art">
               <div className="onboarding-stamp-print">
                 <Stamp slot="onboardWaiting" tilt={-1.2} className="w-[228px] aspect-square" />

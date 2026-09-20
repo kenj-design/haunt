@@ -36,6 +36,7 @@ import type {
 } from '../dataSource'
 import type { CurrentUser, Friend, FriendRequest, Haunt, HauntDraft } from '../../domain'
 import { getSupabaseClient, MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS } from './client'
+import { requestUserLocation } from '../../lib/geo'
 import {
   toCurrentUser,
   toDropPayload,
@@ -105,10 +106,7 @@ function unwrap<T>(
   return response.data
 }
 
-export interface Position {
-  lat: number
-  lng: number
-}
+export type Position = { lat: number; lng: number }
 
 /** The last fix, and when it was taken. `null` covers "asked, and got nothing". */
 let cachedPosition: { value: Position | null; at: number } | null = null
@@ -119,14 +117,7 @@ export function clearCachedPosition(): void {
 }
 
 function readPosition(options: PositionOptions): Promise<Position | null> {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
-      () => resolve(null),
-      options,
-    )
-  })
+  return requestUserLocation(options)
 }
 
 /**
@@ -325,14 +316,14 @@ export function createSupabaseDataSource(
   return {
     loadSnapshot: () => loadSnapshot(null),
 
-    async requestLocation(): Promise<AppSnapshot> {
+    async requestLocation() {
       const position = await currentPosition()
       if (position) {
         // This is intentionally reached only from a location-dependent screen,
         // never from boot or from the onboarding handle claim.
         await supabase.rpc('record_proximity', { p_lat: position.lat, p_lng: position.lng })
       }
-      return loadSnapshot(position)
+      return { snapshot: await loadSnapshot(position), location: position }
     },
 
     async completeOnboarding(handle: string): Promise<AppSnapshot> {
@@ -387,7 +378,11 @@ export function createSupabaseDataSource(
 
     async dropHaunt(draft: HauntDraft): Promise<DropResult> {
       const userId = await requireUserId()
-      const position = await currentPosition()
+      const draftPosition =
+        typeof draft.zone.lat === 'number' && typeof draft.zone.lng === 'number'
+          ? { lat: draft.zone.lat, lng: draft.zone.lng }
+          : null
+      const position = draftPosition ?? (await currentPosition())
       if (!position) {
         throw new DataError(
           'not-permitted',
@@ -470,12 +465,7 @@ export function createSupabaseDataSource(
     },
 
     async markNotificationsRead(): Promise<void> {
-      const userId = await requireUserId()
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read_at: new Date().toISOString() })
-        .eq('recipient_id', userId)
-        .is('read_at', null)
+      const { error } = await supabase.rpc('mark_notifications_read')
       if (error) throw toDataErrorFrom(error, "couldn't update your news")
     },
 
