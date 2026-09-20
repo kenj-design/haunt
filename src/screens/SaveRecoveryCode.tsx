@@ -15,10 +15,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Check, Copy, Share, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Check, Copy, Download, Share, TriangleAlert } from 'lucide-react'
 import { PrimaryButton } from '../components/ui'
 import Stamp from '../components/Stamp'
 import { shouldSuggestHomeScreen } from '../lib/install'
+import { downloadRecoveryCard } from '../lib/recoveryCode'
 
 type Stage = 'confirm' | 'showing'
 
@@ -39,6 +40,8 @@ export default function SaveRecoveryCode({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [savingImage, setSavingImage] = useState(false)
+  const [imageSaved, setImageSaved] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   // Said here because this is the one screen where somebody is already thinking
   // about not losing the account.
@@ -86,6 +89,21 @@ export default function SaveRecoveryCode({
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 2400)
+  }
+
+  const saveImage = async () => {
+    if (!code || savingImage) return
+    setSavingImage(true)
+    setError(null)
+    try {
+      await downloadRecoveryCard(code)
+      setImageSaved(true)
+      setTimeout(() => setImageSaved(false), 2400)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "couldn't save the recovery image")
+    } finally {
+      setSavingImage(false)
+    }
   }
 
   return (
@@ -179,6 +197,16 @@ export default function SaveRecoveryCode({
                   </>
                 )}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void saveImage()}
+              disabled={!code || savingImage}
+              className="onboarding-invite-action pressable mt-3 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-[18px] px-4 text-[12px] font-semibold text-white/76"
+            >
+              <Download size={14} strokeWidth={1.6} />
+              {savingImage ? 'making image…' : imageSaved ? 'image saved' : 'save image'}
             </button>
 
             <div className="mt-5 flex items-start gap-2.5 px-1 text-[11px] leading-[1.45] text-white/40">

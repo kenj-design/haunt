@@ -107,3 +107,88 @@ export async function deriveCredentials(code: string): Promise<DerivedCredential
     password: digest.slice(32, 64),
   }
 }
+
+/** Draws the code into a private, phone-sized card and downloads it locally. */
+export async function downloadRecoveryCard(code: string): Promise<void> {
+  const width = 1080
+  const height = 1350
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('this browser cannot draw the recovery card')
+
+  const background = context.createLinearGradient(0, 0, width, height)
+  background.addColorStop(0, '#11131b')
+  background.addColorStop(0.55, '#07080c')
+  background.addColorStop(1, '#020304')
+  context.fillStyle = background
+  context.fillRect(0, 0, width, height)
+
+  const haze = context.createRadialGradient(width / 2, 390, 0, width / 2, 390, 390)
+  haze.addColorStop(0, 'rgba(161, 175, 222, 0.18)')
+  haze.addColorStop(0.5, 'rgba(99, 76, 146, 0.08)')
+  haze.addColorStop(1, 'rgba(0, 0, 0, 0)')
+  context.fillStyle = haze
+  context.fillRect(0, 0, width, height)
+
+  context.textAlign = 'center'
+  context.fillStyle = 'rgba(242, 242, 244, 0.42)'
+  context.font = '600 28px ui-monospace, SFMono-Regular, Menlo, monospace'
+  context.fillText('HAUNT · RECOVERY', width / 2, 125)
+
+  // A simple key mark keeps the card useful even if the illustration asset is
+  // unavailable while offline or during a deploy.
+  context.save()
+  context.translate(width / 2 - 118, 285)
+  context.rotate(-0.12)
+  context.strokeStyle = 'rgba(220, 226, 247, 0.78)'
+  context.lineWidth = 18
+  context.lineCap = 'round'
+  context.beginPath()
+  context.arc(92, 92, 62, 0, Math.PI * 2)
+  context.moveTo(145, 140)
+  context.lineTo(310, 305)
+  context.moveTo(255, 250)
+  context.lineTo(295, 210)
+  context.moveTo(285, 280)
+  context.lineTo(330, 235)
+  context.stroke()
+  context.restore()
+
+  context.fillStyle = 'rgba(242, 242, 244, 0.58)'
+  context.font = '400 30px ui-monospace, SFMono-Regular, Menlo, monospace'
+  context.fillText('your way back', width / 2, 520)
+
+  context.fillStyle = 'rgba(10, 11, 15, 0.72)'
+  context.strokeStyle = 'rgba(255, 255, 255, 0.14)'
+  context.lineWidth = 2
+  context.beginPath()
+  context.roundRect(72, 590, width - 144, 170, 28)
+  context.fill()
+  context.stroke()
+
+  context.fillStyle = '#f2f2f4'
+  context.font = '600 46px ui-monospace, SFMono-Regular, Menlo, monospace'
+  context.fillText(formatRecoveryCode(normalizeRecoveryCode(code)), width / 2, 690)
+
+  context.fillStyle = 'rgba(242, 242, 244, 0.44)'
+  context.font = '400 27px ui-monospace, SFMono-Regular, Menlo, monospace'
+  context.fillText('KEEP PRIVATE · DO NOT POST', width / 2, 910)
+  context.fillStyle = 'rgba(242, 242, 244, 0.3)'
+  context.font = '400 24px ui-monospace, SFMono-Regular, Menlo, monospace'
+  context.fillText('haunt · private places', width / 2, height - 100)
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (value) => (value ? resolve(value) : reject(new Error("couldn't make the recovery image"))),
+      'image/png',
+    )
+  })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'haunt-recovery-code.png'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
