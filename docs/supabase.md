@@ -245,8 +245,26 @@ That account lives on one device. A **recovery code** is what moves it:
   lost it.
 
 The security rests on the code's entropy. 80 bits against Supabase's per-IP auth
-rate limiting is far past brute force. Two things worth doing before this is
-public:
+rate limiting is far past brute force.
+
+### Admin recovery for alpha support
+
+The original code cannot be retrieved: it is never stored. For an alpha tester
+who loses theirs, the owner can run the local emergency reset command with the
+Supabase service-role key supplied only in the shell environment:
+
+```sh
+VITE_SUPABASE_URL=https://your-project.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
+node scripts/admin-reset-recovery.mjs @handle
+```
+
+The command confirms the target handle, invalidates its old code, and prints one
+new code. Never put the service-role key in Vercel, the browser bundle, or a
+client-side admin screen; it bypasses RLS and belongs only in a trusted owner
+operation.
+
+Two things are still worth doing before this is public:
 
 - **Turn on CAPTCHA** for auth endpoints (Authentication → Settings). Anonymous
   sign-in is otherwise an open door to creating rows.
