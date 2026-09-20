@@ -43,7 +43,14 @@ function initialStep() {
 }
 
 export default function Onboarding() {
-  const { completeOnboarding, navigate, sendFriendRequest, requestLocation, location } = useApp()
+  const {
+    claimOnboardingHandle,
+    completeOnboarding,
+    navigate,
+    sendFriendRequest,
+    requestLocation,
+    location,
+  } = useApp()
   const [step, setStep] = useState(initialStep)
   const [handle, setHandle] = useState('')
   const [query, setQuery] = useState('')
@@ -52,6 +59,8 @@ export default function Onboarding() {
   const [shareStatus, setShareStatus] = useState('')
   const [locationBusy, setLocationBusy] = useState(false)
   const [locationMessage, setLocationMessage] = useState('')
+  const [handleBusy, setHandleBusy] = useState(false)
+  const [handleError, setHandleError] = useState('')
 
   const claimed = handle.trim().length >= 3
   // `?add=` is read back on boot and turned into a real request to know them.
@@ -95,6 +104,19 @@ export default function Onboarding() {
       await sendFriendRequest('@' + invite)
     }
     if (dropFirst) navigate({ name: 'drop' })
+  }
+
+  const claimHandle = async () => {
+    if (!claimed || handleBusy) return
+    setHandleBusy(true)
+    setHandleError('')
+    const error = await claimOnboardingHandle('@' + handle.trim())
+    setHandleBusy(false)
+    if (error) {
+      setHandleError(error)
+      return
+    }
+    setStep(5)
   }
 
   const allowLocation = async () => {
@@ -238,21 +260,25 @@ export default function Onboarding() {
                 autoCapitalize="none"
                 autoCorrect="off"
                 value={handle}
-                onChange={(event) => setHandle(event.target.value.replace(/[^a-zA-Z0-9._]/g, ''))}
+                onChange={(event) => {
+                  setHandle(event.target.value.replace(/[^a-zA-Z0-9._]/g, ''))
+                  setHandleError('')
+                }}
                 placeholder="yourname"
                 className="ml-1 w-full bg-transparent text-[17px] font-medium text-white placeholder:text-white/26"
               />
             </div>
-            <div className="mt-3 h-5">
+            <div className="mt-3 min-h-5">
               {claimed && (
-                <p className="fade-in flex items-center gap-1.5 text-[12px] text-visited">
-                  <Check size={13} strokeWidth={2} /> this name is yours
+                <p className="fade-in flex items-center gap-1.5 text-[12px] text-white/42">
+                  <Check size={13} strokeWidth={2} /> valid handle format
                 </p>
               )}
+              {handleError && <p className="fade-in text-[12px] text-fof">{handleError}</p>}
             </div>
             <div className="onboarding-actions">
-              <PrimaryButton onClick={() => claimed && setStep(5)} disabled={!claimed}>
-                claim this name
+              <PrimaryButton onClick={() => void claimHandle()} disabled={!claimed || handleBusy}>
+                {handleBusy ? 'checking…' : 'claim this name'}
               </PrimaryButton>
             </div>
           </OnboardingStep>

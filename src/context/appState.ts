@@ -88,6 +88,8 @@ export interface AppState {
    * either way.
   */
   completeOnboarding: (handle: string) => Promise<boolean>
+  /** Claims a handle early so onboarding can show availability before advancing. */
+  claimOnboardingHandle: (handle: string) => Promise<string | null>
   /** Asks for location only when a location-dependent screen is entered. */
   requestLocation: () => Promise<boolean>
   /**

@@ -224,6 +224,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutate, source, previewOnboarding],
   )
 
+  /**
+   * Claims the handle while keeping the onboarding gate visible. The backend
+   * owns the uniqueness check; the final onboarding action calls the normal
+   * completion path again, which is safe because this account now owns it.
+   */
+  const claimOnboardingHandle = useCallback(
+    async (handle: string): Promise<string | null> => {
+      setPendingCount((count) => count + 1)
+      setError(null)
+      try {
+        const next = await source().completeOnboarding(handle)
+        setSnapshot((current) =>
+          current ? { ...current, ...next, onboarded: false } : current,
+        )
+        return null
+      } catch (cause) {
+        const message = toDataError(cause, "couldn't claim that handle").message
+        setError(message)
+        return message
+      } finally {
+        setPendingCount((count) => count - 1)
+      }
+    },
+    [source],
+  )
+
   const requestLocation = useCallback(async () => {
     setPendingCount((count) => count + 1)
     setError(null)
@@ -431,6 +457,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       error,
       dismissError,
       completeOnboarding,
+      claimOnboardingHandle,
       requestLocation,
       navigate,
       goBack,
@@ -463,6 +490,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     createRecoveryCode,
     confirmRecoveryCodeSaved,
     completeOnboarding,
+    claimOnboardingHandle,
     requestLocation,
     navigate,
     goBack,
