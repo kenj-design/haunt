@@ -1485,13 +1485,6 @@ audio {
     opacity 180ms ease;
 }
 
-@starting-style {
-  .selected-place-card {
-    transform: translateY(calc(100% + 12px));
-    opacity: 0;
-  }
-}
-
 .selected-place-card.is-closing {
   pointer-events: none;
   transform: translateY(calc(100% + 12px));
@@ -1583,82 +1576,76 @@ audio {
 .haunt-memory-marker {
   color: #d9eee4;
   background: transparent;
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+  filter: drop-shadow(0 8px 18px rgba(88, 191, 140, 0.16));
   animation: memory-marker-float 6.8s ease-in-out infinite;
 }
 
 .haunt-memory-marker::before {
   content: '';
   position: absolute;
-  inset: 7px;
+  inset: 1px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(180, 232, 207, 0.38), rgba(107, 187, 151, 0.12) 42%, transparent 72%);
-  filter: blur(7px);
+  background: radial-gradient(
+    circle,
+    rgba(224, 255, 238, 0.42) 0 9%,
+    rgba(169, 239, 198, 0.24) 26%,
+    rgba(91, 196, 143, 0.12) 48%,
+    transparent 74%
+  );
+  filter: blur(9px);
   animation: memory-orb-haze 7.5s ease-in-out infinite;
 }
 
 .haunt-memory-marker::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 5px;
   border-radius: 999px;
-  background:
-    linear-gradient(90deg, transparent 42%, rgba(220, 248, 232, 0.28) 49%, transparent 56%),
-    linear-gradient(0deg, transparent 42%, rgba(220, 248, 232, 0.2) 49%, transparent 56%);
-  filter: blur(1.6px);
-  opacity: 0.7;
+  background: radial-gradient(circle, rgba(236, 255, 244, 0.5), rgba(149, 232, 180, 0.14) 44%, transparent 74%);
+  filter: blur(5px);
+  opacity: 0.68;
 }
 
 .haunt-memory-orb {
   position: relative;
   z-index: 1;
   display: block;
-  width: 19px;
-  height: 19px;
-  border: 1px solid rgba(232, 255, 241, 0.56);
+  width: 25px;
+  height: 25px;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.82) 0 7%, transparent 30%),
-    radial-gradient(circle at 76% 68%, rgba(92, 218, 157, 0.74), transparent 54%),
-    radial-gradient(circle at 42% 88%, rgba(89, 164, 228, 0.5), transparent 62%),
-    linear-gradient(145deg, rgba(223, 249, 233, 0.7), rgba(31, 101, 78, 0.58));
-  background-size: 180% 180%, 190% 190%, 175% 175%, 100% 100%;
-  background-position: 8% 4%, 88% 76%, 32% 86%, center;
-  background-blend-mode: screen, screen, screen, normal;
-  opacity: 0.84;
+    radial-gradient(circle at 48% 48%, rgba(236, 255, 244, 0.7) 0 9%, rgba(184, 246, 207, 0.46) 24%, rgba(104, 213, 155, 0.22) 48%, transparent 74%),
+    radial-gradient(circle at 70% 68%, rgba(85, 204, 143, 0.22), transparent 62%);
+  filter: blur(2.8px) saturate(1.08);
+  opacity: 0.9;
+  mix-blend-mode: screen;
   box-shadow:
-    inset 1px 1px 2px rgba(255, 255, 255, 0.52),
-    0 0 8px rgba(174, 241, 204, 0.64),
-    0 0 22px rgba(105, 210, 157, 0.36);
-  backdrop-filter: blur(8px) saturate(1.4);
-  -webkit-backdrop-filter: blur(8px) saturate(1.4);
-  will-change: background-position, transform;
+    0 0 10px rgba(186, 255, 213, 0.54),
+    0 0 25px rgba(90, 209, 145, 0.34),
+    0 0 42px rgba(70, 157, 117, 0.18);
+  will-change: transform, opacity;
   animation: memory-orb-mesh 8.5s ease-in-out infinite alternate;
 }
 
-.haunt-memory-glint {
+.haunt-memory-orb::before {
+  content: '';
   position: absolute;
-  z-index: 2;
-  top: 11px;
-  left: 13px;
-  display: block;
-  width: 4px;
-  height: 4px;
+  inset: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 0 7px rgba(255, 255, 255, 0.9);
-  animation: memory-glint-drift 5.8s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.56), transparent 68%);
+  filter: blur(3px);
+  opacity: 0.72;
 }
 
 @keyframes memory-orb-mesh {
   0%,
   100% {
-    background-position: 8% 4%, 88% 76%, 32% 86%, center;
-    transform: rotate(-5deg) scale(0.98);
+    transform: translate3d(-1px, 1px, 0) scale(0.94);
+    opacity: 0.72;
   }
   50% {
-    background-position: 72% 36%, 22% 58%, 76% 18%, center;
-    transform: rotate(7deg) scale(1.04);
+    transform: translate3d(2px, -2px, 0) scale(1.08);
+    opacity: 0.98;
   }
 }
 
@@ -1671,18 +1658,6 @@ audio {
   50% {
     opacity: 0.78;
     transform: translate3d(2px, -1px, 0) scale(1.08);
-  }
-}
-
-@keyframes memory-glint-drift {
-  0%,
-  100% {
-    opacity: 0.56;
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    opacity: 0.92;
-    transform: translate3d(2px, -1px, 0);
   }
 }
 
@@ -2082,8 +2057,7 @@ audio {
   .haunt-discovered-ring,
   .haunt-memory-marker,
   .haunt-memory-marker::before,
-  .haunt-memory-orb,
-  .haunt-memory-glint {
+  .haunt-memory-orb {
     animation: none;
   }
   .vibe-orb-mesh {

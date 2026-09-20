@@ -14,8 +14,8 @@
  * the bottom sheet tracks the finger 1:1 with a velocity window, so a flick
  * commits before the sheet crosses its midpoint.
  */
-import { useEffect, useRef, useState } from 'react'
-import { Bell, ChevronUp, Expand, LocateFixed, MapPin, Minus, MoreHorizontal, Plus, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Bell, Expand, LocateFixed, MapPin, Minus, MoreHorizontal, Plus, X } from 'lucide-react'
 import { Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useApp } from '../context/appState'
@@ -74,6 +74,8 @@ type MarkerPosition = {
 const LABEL_HALF_WIDTH = 78
 /** A restrained echo of the map's bearing, keeping captions subtly grounded. */
 const LABEL_TILT_DEGREES = MAP_BEARING / 2
+/** Keep the map readable at neighborhood scale; zones remain tappable below it. */
+const MAP_LABEL_MIN_ZOOM = 14.5
 /** Shroud shapes cycle through this many variants. */
 const SHROUD_VARIANTS = 17
 
@@ -82,11 +84,13 @@ function Zone({
   isOwn,
   onOpen,
   position,
+  showLabel,
 }: {
   haunt: Haunt
   isOwn: boolean
   onOpen: () => void
   position: MarkerPosition
+  showLabel: boolean
 }) {
   const width = position.width || 76
   const height = position.height || 76
@@ -109,7 +113,6 @@ function Zone({
           <>
             <span className="haunt-memory-marker relative flex h-10 w-10 items-center justify-center rounded-full">
               <span className="haunt-memory-orb" aria-hidden="true" />
-              <span className="haunt-memory-glint" aria-hidden="true" />
             </span>
           </>
         ) : (
@@ -125,15 +128,17 @@ function Zone({
           </div>
         )}
       </div>
-      <div
-        className="map-haunt-label pressable-subtle absolute top-[calc(100%+4px)] left-1/2 max-w-[46vw] truncate rounded-full border border-white/[0.11] bg-black/72 px-2.5 py-1 text-white/88 shadow-lg backdrop-blur-xl transition-colors duration-200 group-hover:bg-black/90 group-active:bg-black/90"
-        style={{
-          transform: `translateX(calc(-50% + ${position.labelShift}px)) rotate(${LABEL_TILT_DEGREES}deg)`,
-          transformOrigin: 'center top',
-        }}
-      >
-        {isFof ? '???' : haunt.name}
-      </div>
+      {showLabel && (
+        <div
+          className="map-haunt-label pressable-subtle absolute top-[calc(100%+4px)] left-1/2 max-w-[46vw] truncate rounded-full border border-white/[0.11] bg-black/72 px-2.5 py-1 text-white/88 shadow-lg backdrop-blur-xl transition-colors duration-200 group-hover:bg-black/90 group-active:bg-black/90"
+          style={{
+            transform: `translateX(calc(-50% + ${position.labelShift}px)) rotate(${LABEL_TILT_DEGREES}deg)`,
+            transformOrigin: 'center top',
+          }}
+        >
+          {isFof ? '???' : haunt.name}
+        </div>
+      )}
     </button>
   )
 }
@@ -142,20 +147,86 @@ function SelectedPlaceCard({
   haunt,
   isOwn,
   isClosing,
+  sourcePoint,
   onClose,
   onOpen,
 }: {
   haunt: Haunt
   isOwn: boolean
   isClosing: boolean
+  sourcePoint: { x: number; y: number } | null
   onClose: () => void
   onOpen: () => void
 }) {
   const isFof = haunt.visibility === 'fof' && !isOwn
   const statusLabel = haunt.status === 'visited' ? 'visited' : haunt.status === 'arrived' ? 'you made it' : 'sealed nearby'
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const card = cardRef.current
+    const parent = card?.parentElement
+    if (!card || !parent || !sourcePoint || typeof card.animate !== 'function') return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const parentRect = parent.getBoundingClientRect()
+    const cardRect = card.getBoundingClientRect()
+    const sourceX = parentRect.left + sourcePoint.x
+    const sourceY = parentRect.top + sourcePoint.y
+    const cardCenterX = cardRect.left + cardRect.width / 2
+    const cardCenterY = cardRect.top + cardRect.height / 2
+    const deltaX = sourceX - cardCenterX
+    const deltaY = sourceY - cardCenterY
+    const sourceTransform = `translate3d(${deltaX}px, ${deltaY}px, 0) scale(0.16)`
+    const animation = card.animate(
+      isClosing
+        ? [
+            {
+              opacity: 1,
+              transform: 'translate3d(0, 0, 0) scale(1)',
+              borderRadius: '28px',
+              filter: 'blur(0px)',
+            },
+            {
+              opacity: 0,
+              transform: sourceTransform,
+              borderRadius: '50%',
+              filter: 'blur(2px)',
+            },
+          ]
+        : [
+            {
+              opacity: 0,
+              transform: sourceTransform,
+              borderRadius: '50%',
+              filter: 'blur(2px)',
+            },
+            {
+              opacity: 1,
+              transform: `translate3d(${deltaX * 0.035}px, ${deltaY * 0.035}px, 0) scale(1.025)`,
+              borderRadius: '30px',
+              filter: 'blur(0px)',
+              offset: 0.78,
+            },
+            {
+              opacity: 1,
+              transform: 'translate3d(0, 0, 0) scale(1)',
+              borderRadius: '28px',
+              filter: 'blur(0px)',
+            },
+          ],
+      {
+        duration: isClosing ? 240 : 500,
+        easing: isClosing ? 'cubic-bezier(0.32, 0, 0.67, 0)' : 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'both',
+      },
+    )
+
+    return () => animation.cancel()
+  }, [isClosing, sourcePoint])
 
   return (
     <div
+      ref={cardRef}
       className={`selected-place-card absolute inset-x-3 bottom-3 z-[60] overflow-hidden rounded-[28px] border border-white/[0.16] shadow-[0_22px_60px_rgba(0,0,0,.62)] ${isClosing ? 'is-closing' : ''}`}
       role="dialog"
       aria-label={isFof ? 'selected nearby place' : `selected place ${haunt.name}`}
@@ -231,6 +302,7 @@ export default function MapScreen() {
   const [flash, setFlash] = useState<string | null>(null)
   const [showDropNotice, setShowDropNotice] = useState(false)
   const [selectedHauntId, setSelectedHauntId] = useState<string | null>(null)
+  const [selectedPlaceSource, setSelectedPlaceSource] = useState<{ x: number; y: number } | null>(null)
   const [selectedPlaceClosing, setSelectedPlaceClosing] = useState(false)
   const selectedPlaceCloseTimer = useRef<number | null>(null)
   const activeHaunts = haunts.filter((haunt) => isHauntActive(haunt))
@@ -247,15 +319,17 @@ export default function MapScreen() {
   const hauntsRef = useRef(haunts)
   const syncMarkersRef = useRef<() => void>(() => undefined)
   const [markerPositions, setMarkerPositions] = useState<Record<string, MarkerPosition>>({})
+  const [mapLabelsVisible, setMapLabelsVisible] = useState(true)
   hauntsRef.current = mappableHaunts
 
   const closeSelectedPlace = () => {
     setSelectedPlaceClosing(true)
     selectedPlaceCloseTimer.current = window.setTimeout(() => {
       setSelectedHauntId(null)
+      setSelectedPlaceSource(null)
       setSelectedPlaceClosing(false)
       selectedPlaceCloseTimer.current = null
-    }, 220)
+    }, 250)
   }
 
   const openSelectedPlace = (haunt: Haunt) => {
@@ -265,6 +339,8 @@ export default function MapScreen() {
     }
     setSelectedPlaceClosing(false)
     setSelectedHauntId(haunt.id)
+    const marker = markerPositions[haunt.id]
+    setSelectedPlaceSource(marker ? { x: marker.left, y: marker.top } : null)
     setSheetOpen(false)
     const [lat, lng] = hauntLatLng(haunt.zone, location ? [location.lat, location.lng] : undefined)
     mapRef.current?.easeTo({
@@ -303,6 +379,8 @@ export default function MapScreen() {
     const canvas = map.getCanvas()
     const width = canvas.clientWidth
     const height = canvas.clientHeight
+    const labelsVisible = map.getZoom() >= MAP_LABEL_MIN_ZOOM
+    setMapLabelsVisible((current) => (current === labelsVisible ? current : labelsVisible))
     const next: Record<string, MarkerPosition> = {}
     hauntsRef.current.forEach((haunt) => {
       const [lat, lng] = hauntLatLng(haunt.zone, location ? [location.lat, location.lng] : undefined)
@@ -604,6 +682,7 @@ export default function MapScreen() {
             haunt={h}
             isOwn={h.finderHandle === user.handle}
             position={position}
+            showLabel={mapLabelsVisible}
             onOpen={() => openSelectedPlace(h)}
           />
         ) : null
@@ -627,6 +706,7 @@ export default function MapScreen() {
           haunt={selectedHaunt}
           isOwn={selectedHaunt.finderHandle === user.handle}
           isClosing={selectedPlaceClosing}
+          sourcePoint={selectedPlaceSource}
           onClose={closeSelectedPlace}
           onOpen={() => navigate({ name: 'haunt', hauntId: selectedHaunt.id })}
         />
@@ -640,9 +720,6 @@ export default function MapScreen() {
         <div>
           <span className="app-title block text-white">Haunt</span>
         </div>
-        <span className="glass-control absolute top-3 left-1/2 -translate-x-1/2 rounded-full px-3.5 py-1.5 text-[10px] font-medium tracking-[-0.01em] text-white/68">
-          {location ? 'near you' : 'map'}
-        </span>
         <button
           onClick={() => navigate({ name: 'notifications' })}
           className="glass-control pressable relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white transition-colors duration-200 hover:bg-white/10"
@@ -782,16 +859,6 @@ export default function MapScreen() {
                 Places close to you
               </span>
             </div>
-            {!sheetOpen && (
-              <span className="glass-control flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-medium text-white/65">
-                {visible.length}
-                <ChevronUp
-                  size={13}
-                  strokeWidth={1.6}
-                  className="transition-transform duration-200 [transition-timing-function:var(--ease-in-out)]"
-                />
-              </span>
-            )}
           </div>
         </button>
         <div
