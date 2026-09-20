@@ -140,7 +140,7 @@ export default function Onboarding() {
         </p>
       </header>
 
-      <main className="relative z-10 min-h-0 flex-1">
+      <main className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar">
         {step === 1 && (
           <OnboardingStep key={1}>
             <div className="onboarding-art">
@@ -266,12 +266,11 @@ export default function Onboarding() {
               </div>
             </div>
             <h1 className="text-[32px] font-semibold leading-[1.08] tracking-[-0.05em] text-white">
-              Haunt needs one other person.
+              Start alone. Bring a friend when you’re ready.
             </h1>
             <p className="mt-3 text-[14px] leading-[1.5] text-white/50">
-              Places only move between people who know each other, so a map of one is
-              a map of nothing. Send someone your link, or add them by handle if they
-              are already here.
+              Haunt gets better when a place can travel to someone, but this part is
+              optional. Send your link, or add someone by handle if they are already here.
             </p>
 
             <div className="mt-6 flex flex-col gap-2.5">
@@ -351,14 +350,14 @@ export default function Onboarding() {
               <PrimaryButton onClick={() => setStep(6)}>
                 {invites.length > 0
                   ? `ask ${invites.length} ${invites.length === 1 ? 'person' : 'people'}`
-                  : 'bring a friend'}
+                  : 'continue'}
               </PrimaryButton>
               <button
                 type="button"
                 onClick={() => setStep(6)}
                 className="pressable min-h-10 w-full cursor-pointer text-[12px] text-white/38 transition-colors duration-200 hover:text-white/64"
               >
-                do this later
+                skip for now
               </button>
             </div>
           </OnboardingStep>
@@ -416,7 +415,7 @@ function OnboardingStep({
   children: React.ReactNode
   className?: string
 }) {
-  return <section className={`onboarding-step flex h-full flex-col ${className}`}>{children}</section>
+  return <section className={`onboarding-step flex min-h-full flex-col ${className}`}>{children}</section>
 }
 
 
