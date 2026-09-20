@@ -393,12 +393,20 @@ export function createSupabaseDataSource(
       // Name the haunt's id up front so media lands at its final path before the
       // row exists; storage policies key on that path.
       const hauntId = crypto.randomUUID()
-      const photoPaths = await uploadPhotos(supabase, userId, hauntId, draft.photoUrls)
+      const { paths: photoPaths, uploadedPaths } = await uploadPhotos(
+        supabase,
+        userId,
+        hauntId,
+        draft.photoUrls,
+      )
 
       const { data, error } = await supabase.rpc('drop_haunt', {
         p_payload: { ...toDropPayload(draft, position, photoPaths), id: hauntId },
       })
-      if (error) throw toDataErrorFrom(error, "couldn't leave that haunt")
+      if (error) {
+        await removeUploadedPhotos(supabase, uploadedPaths)
+        throw toDataErrorFrom(error, "couldn't leave that haunt")
+      }
 
       const [haunt, user] = await Promise.all([
         readHaunt((data as string) ?? hauntId),
@@ -480,34 +488,104 @@ export function createSupabaseDataSource(
  * Uploads a draft's photos and returns their storage keys.
  *
  * The composer holds photos as in-memory object URLs, so each one is fetched
- * back out of the browser before it can be sent. Anything already remote is
- * passed through untouched.
+ * back out of the browser before it can be sent. Photos are resized and
+ * re-encoded before upload: that keeps storage and egress predictable, and
+ * the canvas round-trip strips EXIF metadata such as GPS coordinates. Anything
+ * already remote is passed through untouched.
  */
+const MAX_PHOTO_EDGE = 1_600
+const PHOTO_QUALITY = 0.82
+
+type PhotoUploadResult = {
+  paths: string[]
+  /** Only files uploaded during this attempt, so failed drops can clean them. */
+  uploadedPaths: string[]
+}
+
 async function uploadPhotos(
   supabase: SupabaseClient,
   userId: string,
   hauntId: string,
   photoUrls: string[],
-): Promise<string[]> {
+): Promise<PhotoUploadResult> {
   const paths: string[] = []
+  const uploadedPaths: string[] = []
 
-  for (const [index, url] of photoUrls.entries()) {
-    if (!url.startsWith('blob:')) {
-      paths.push(url)
-      continue
+  try {
+    for (const [index, url] of photoUrls.entries()) {
+      if (!url.startsWith('blob:')) {
+        paths.push(url)
+        continue
+      }
+
+      const source = await fetch(url).then((response) => response.blob())
+      const blob = await optimizePhoto(source)
+      const contentType = blob.type || source.type || 'image/jpeg'
+      const extension = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg'
+      const path = `${userId}/${hauntId}/photo-${index}.${extension}`
+
+      const { error } = await supabase.storage
+        .from(MEDIA_BUCKET)
+        .upload(path, blob, { contentType, upsert: true })
+
+      if (error) throw new DataError('unknown', "couldn't upload that photo", { cause: error })
+      paths.push(path)
+      uploadedPaths.push(path)
     }
-
-    const blob = await fetch(url).then((response) => response.blob())
-    const extension = blob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg'
-    const path = `${userId}/${hauntId}/photo-${index}.${extension}`
-
-    const { error } = await supabase.storage
-      .from(MEDIA_BUCKET)
-      .upload(path, blob, { contentType: blob.type, upsert: true })
-
-    if (error) throw new DataError('unknown', "couldn't upload that photo", { cause: error })
-    paths.push(path)
+  } catch (error) {
+    await removeUploadedPhotos(supabase, uploadedPaths)
+    throw error instanceof DataError
+      ? error
+      : new DataError('unknown', "couldn't upload that photo", { cause: error })
   }
 
-  return paths
+  return { paths, uploadedPaths }
+}
+
+/** Re-encodes a local photo so large originals and EXIF do not leave the device. */
+async function optimizePhoto(source: Blob): Promise<Blob> {
+  if (!source.type.startsWith('image/')) return source
+
+  try {
+    if (typeof createImageBitmap !== 'function') return source
+
+    const bitmap = await createImageBitmap(source, { imageOrientation: 'from-image' })
+    const longestEdge = Math.max(bitmap.width, bitmap.height)
+    const scale = Math.min(1, MAX_PHOTO_EDGE / longestEdge)
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+
+    const context = canvas.getContext('2d')
+    if (!context) {
+      bitmap.close()
+      return source
+    }
+    context.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+
+    const optimized = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', PHOTO_QUALITY),
+    )
+    return optimized ?? source
+  } catch {
+    // A browser that cannot decode an unusual image format should not make a
+    // haunt impossible to leave; the normal upload path remains the fallback.
+    return source
+  }
+}
+
+/** Best-effort cleanup that never hides the original upload or RPC failure. */
+async function removeUploadedPhotos(
+  supabase: SupabaseClient,
+  paths: string[],
+): Promise<void> {
+  if (paths.length === 0) return
+  try {
+    await supabase.storage.from(MEDIA_BUCKET).remove(paths)
+  } catch {
+    // The original upload or drop error is more useful than cleanup noise.
+  }
 }
