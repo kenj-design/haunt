@@ -8,7 +8,7 @@
  *
  * Usage:
  *   VITE_SUPABASE_URL=https://... \
- *   SUPABASE_SERVICE_ROLE_KEY=... \
+ *   SUPABASE_SECRET_KEY=... \
  *   node scripts/admin-reset-recovery.mjs @handle
  */
 
@@ -45,14 +45,16 @@ function deriveCredentials(code) {
 
 const handle = process.argv[2]?.trim().replace(/^@/, '').toLowerCase()
 const url = process.env.VITE_SUPABASE_URL
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!handle || !/^[a-z0-9._]{3,30}$/.test(handle)) {
   console.error('Usage: node scripts/admin-reset-recovery.mjs @handle')
   process.exit(1)
 }
 if (!url || !serviceRoleKey) {
-  console.error('Set VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY first.')
+  console.error(
+    'Set VITE_SUPABASE_URL and SUPABASE_SECRET_KEY first (or the legacy SUPABASE_SERVICE_ROLE_KEY).',
+  )
   process.exit(1)
 }
 

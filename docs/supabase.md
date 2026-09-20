@@ -255,7 +255,7 @@ Supabase service-role key supplied only in the shell environment:
 
 ```sh
 VITE_SUPABASE_URL=https://your-project.supabase.co \
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
+SUPABASE_SECRET_KEY=your-secret-key \
 node scripts/admin-reset-recovery.mjs @handle
 ```
 
@@ -263,6 +263,9 @@ The command confirms the target handle, invalidates its old code, and prints one
 new code. Never put the service-role key in Vercel, the browser bundle, or a
 client-side admin screen; it bypasses RLS and belongs only in a trusted owner
 operation.
+
+The older `service_role` key also works if that is the only elevated key your
+project shows, but Supabase now recommends the `secret` key.
 
 Two things are still worth doing before this is public:
 
