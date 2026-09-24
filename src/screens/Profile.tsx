@@ -11,6 +11,7 @@ import { Check, Clock, KeyRound, LayoutGrid, RefreshCw, Share, UserRoundPlus, X 
 import { useApp } from '../context/appState'
 import { Avatar, ScreenHeader, VibePill } from '../components/ui'
 import Stamp from '../components/Stamp'
+import MemoryCollage from '../components/MemoryCollage'
 import { shouldSuggestHomeScreen } from '../lib/install'
 
 function Stat({ value, label }: { value: number; label: string }) {
@@ -33,6 +34,7 @@ export default function Profile({
 }) {
   const {
     user,
+    haunts,
     friends,
     keepsakes,
     friendRequests,
@@ -49,6 +51,7 @@ export default function Profile({
   const suggestHomeScreen = useMemo(shouldSuggestHomeScreen, [])
   const incoming = friendRequests.filter((request) => request.direction === 'incoming')
   const outgoing = friendRequests.filter((request) => request.direction === 'outgoing')
+  const ownHaunts = haunts.filter((haunt) => haunt.finderHandle === user.handle).reverse()
 
   const ask = async () => {
     const handle = askHandle.trim()
@@ -89,6 +92,12 @@ export default function Profile({
             <Stat value={user.hauntsVisited} label="visited" />
             <Stat value={user.hauntsPassedOn} label="passed on" />
           </div>
+
+          <MemoryCollage
+            haunts={ownHaunts}
+            onOpen={(hauntId) => navigate({ name: 'haunt', hauntId })}
+            onCreate={() => navigate({ name: 'drop' })}
+          />
 
           <div className="mt-8 px-5">
             <p className="text-[14px] font-medium tracking-[-0.015em] text-ink-2">Your vibe</p>

@@ -18,6 +18,8 @@ import type {
   Keepsake,
   Notification,
 } from '../domain'
+import reservoirStepsWide from '../assets/memories/reservoir-steps-wide.jpg'
+import reservoirStepsDetail from '../assets/memories/reservoir-steps-detail.jpg'
 
 export const seedUser: CurrentUser = {
   handle: '@you',
@@ -56,6 +58,58 @@ export const seedKeepsakes: Keepsake[] = [
 ]
 
 export const seedHaunts: Haunt[] = [
+  {
+    id: 'your-sunroom-bench',
+    name: 'the sunroom bench',
+    finderHandle: '@you',
+    vibeTags: ['quiet', 'hidden'],
+    bestTimeTags: ['afternoon'],
+    story: 'A quiet bench behind the old building where the light arrives late.',
+    arrivalNote: 'Wait for the sun to reach the floorboards. That is the best part.',
+    arrivalNoteKind: 'text',
+    passerNote: null,
+    status: 'visited',
+    visibility: 'friend',
+    audience: 'self',
+    lifespan: 'lasting',
+    retired: false,
+    zone: { x: 52, y: 60, radiusM: 120 },
+    shroudTemperament: 1,
+    photoGradient: 'linear-gradient(145deg,#71675c,#302d2c 55%,#141719)',
+    photoUrls: [],
+    visitorCount: 1,
+    distanceLabel: 'your place',
+    residues: [],
+    founders: ['@you'],
+    health: { score: 100, velocity: 100, networkDistance: 100, conversion: 100 },
+    lineage: [{ handle: '@you', role: 'you', action: 'found this place', time: 'aug 2025' }],
+  },
+  {
+    id: 'your-reservoir-steps',
+    name: 'the reservoir steps',
+    finderHandle: '@you',
+    vibeTags: ['quiet', 'nature'],
+    bestTimeTags: ['morning', 'rainy day'],
+    story: 'The old steps meet the water just beyond the trees. I come here when I need a minute to hear myself think.',
+    arrivalNote: 'Take the last step slowly. The lake opens up all at once.',
+    arrivalNoteKind: 'text',
+    passerNote: null,
+    status: 'visited',
+    visibility: 'friend',
+    audience: 'self',
+    lifespan: 'lasting',
+    retired: false,
+    zone: { x: 45, y: 58, radiusM: 160 },
+    shroudTemperament: 2,
+    photoGradient: 'linear-gradient(150deg,#52624a,#18221e)',
+    photoUrls: [reservoirStepsWide, reservoirStepsDetail],
+    visitorCount: 1,
+    distanceLabel: 'your place',
+    residues: [],
+    founders: ['@you'],
+    health: { score: 100, velocity: 100, networkDistance: 100, conversion: 100 },
+    lineage: [{ handle: '@you', role: 'you', action: 'found this place', time: 'sep 2026' }],
+  },
   {
     id: 'moss-steps',
     name: 'the moss steps',
