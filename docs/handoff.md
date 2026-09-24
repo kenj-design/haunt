@@ -166,8 +166,13 @@ confirmation and the detail gallery both show photos now, so a broken signing
 path will be obvious rather than invisible. One drop with a photo, on a phone,
 settles it.
 
-**6 — Anonymous signup is an open door.** No CAPTCHA on auth, no cleanup of
-abandoned anonymous accounts. Supabase warns about both.
+**6 — Anonymous signup still needs a CAPTCHA decision.** Anonymous sessions can
+ finish onboarding, but the database now refuses haunt drops and media uploads
+ until a recovery key upgrades the account. Server-side member quotas now exist,
+ plus `scripts/supabase-maintenance.mjs` can report, pause writes, and clean
+ abandoned anonymous accounts. CAPTCHA is still the strongest protection
+ against auth-row growth, but it remains intentionally off for the low-friction
+ alpha.
 
 **7 — `record_proximity` unproven end to end.** It writes `visits.near_at` and is
 deployed, but the "did you make it?" prompt appearing purely from walking past

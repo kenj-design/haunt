@@ -19,8 +19,8 @@ project has to exist first.
 ## 1. Supabase
 
 Follow [supabase.md](supabase.md) — create the project, flip the two auth
-settings, apply the four migrations. Come back with the **Project URL** and the
-**anon key** from Project Settings → API.
+settings, and apply every migration in `supabase/migrations/` in filename order.
+Come back with the **Project URL** and the **anon key** from Project Settings → API.
 
 Do not skip the auth settings. Anonymous sign-in off means nobody can get in at
 all; email confirmation on means nobody can save a recovery code.

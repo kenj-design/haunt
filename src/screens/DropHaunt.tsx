@@ -42,7 +42,6 @@ import type { Haunt, HauntDraft } from '../domain'
 import { zonePreviewTileUrl } from '../lib/geo'
 
 const MAX_PHOTOS = 3
-const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024
 const MAX_VIBES = 3
 const MAX_NAME_LENGTH = 50
 const MIN_ZONE_RADIUS_M = 100
@@ -143,10 +142,6 @@ export default function DropHaunt() {
       }
       if (!file.type.startsWith('image/')) {
         error = 'choose image files only'
-        return
-      }
-      if (file.size > MAX_PHOTO_SIZE_BYTES) {
-        error = 'keep each photo under 5 MB'
         return
       }
       nextUrls.push(URL.createObjectURL(file))

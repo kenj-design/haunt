@@ -86,8 +86,10 @@ supabase/migrations/
                              would otherwise have handed out coordinates
   0008_security_hardening.sql  remaining direct writes removed; notification
                                updates narrowed to one authenticated RPC
-  0009_lock_anonymous_reads.sql  anonymous table endpoints removed for the
+ 0009_lock_anonymous_reads.sql  anonymous table endpoints removed for the
                                 remaining read-only tables
+ 0010_abuse_controls.sql       server-side quotas, media limits, and a private
+                                emergency switch for the alpha
 ```
 
 `mockDataSource.ts` is the specification. When a rule is ambiguous — what a visit
@@ -275,6 +277,35 @@ Two things are still worth doing before this is public:
   without making a code is a permanent row. A scheduled job deleting
   `auth.users` where `is_anonymous` and `created_at < now() - interval '30 days'`
   keeps that from accumulating.
+
+The repository now also includes server-side abuse controls in
+`0010_abuse_controls.sql`. The defaults are intentionally generous for an
+alpha, but are real backend limits rather than UI hints:
+
+- anonymous users: no drops and no media uploads until they create a recovery
+  key;
+- recovered/member accounts: 20 drops per rolling 24 hours, 500 total, and
+  100 MB of media;
+- each media object: 5 MB maximum, image MIME types only, and only the expected
+  `<profile>/<haunt>/photo-N.ext` path shape.
+
+The browser's existing three-photo limit remains, and the database still caps a
+haunt at three stored paths. The new storage policy is what stops a direct API
+caller from bypassing the browser's file-size check. Failed uploads can still
+leave an orphan for a short time because the app uploads before the final haunt
+transaction; run the owner-only maintenance script periodically:
+
+```sh
+VITE_SUPABASE_URL=https://your-project.supabase.co \
+SUPABASE_SECRET_KEY=your-secret-key \
+node scripts/supabase-maintenance.mjs report
+```
+
+The same script supports `cleanup` (dry-run by default), `cleanup --apply`,
+`pause`, and `resume`. `pause` blocks onboarding completion, haunt drops, and
+media uploads through the private `app_controls` row. It does not replace
+turning off anonymous sign-ins in Authentication settings, which is the hard
+stop for new auth rows.
 
 ## What is missing
 

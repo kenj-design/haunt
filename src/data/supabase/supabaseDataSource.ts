@@ -494,7 +494,11 @@ export function createSupabaseDataSource(
  * already remote is passed through untouched.
  */
 const MAX_PHOTO_EDGE = 1_600
-const PHOTO_QUALITY = 0.82
+// Leave a little room below Supabase Storage's 5 MB object limit. The source
+// photo can be much larger; this is the size of the encoded upload instead.
+const MAX_PHOTO_UPLOAD_BYTES = 4.5 * 1024 * 1024
+const PHOTO_QUALITIES = [0.82, 0.74, 0.66, 0.58, 0.5]
+const PHOTO_EDGE_TARGETS = [MAX_PHOTO_EDGE, 1_400, 1_200, 1_000, 800, 640]
 
 type PhotoUploadResult = {
   paths: string[]
@@ -546,35 +550,80 @@ async function uploadPhotos(
 async function optimizePhoto(source: Blob): Promise<Blob> {
   if (!source.type.startsWith('image/')) return source
 
+  let bitmap: ImageBitmap | null = null
+  let image: HTMLImageElement | null = null
+  let objectUrl: string | null = null
+
   try {
-    if (typeof createImageBitmap !== 'function') return source
-
-    const bitmap = await createImageBitmap(source, { imageOrientation: 'from-image' })
-    const longestEdge = Math.max(bitmap.width, bitmap.height)
-    const scale = Math.min(1, MAX_PHOTO_EDGE / longestEdge)
-    const width = Math.max(1, Math.round(bitmap.width * scale))
-    const height = Math.max(1, Math.round(bitmap.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-
-    const context = canvas.getContext('2d')
-    if (!context) {
-      bitmap.close()
-      return source
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(source, { imageOrientation: 'from-image' })
+      } catch {
+        // Some mobile browsers can display an image but cannot decode its
+        // format through createImageBitmap. Fall back to a normal image tag.
+      }
     }
-    context.drawImage(bitmap, 0, 0, width, height)
-    bitmap.close()
 
-    const optimized = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', PHOTO_QUALITY),
+    if (!bitmap) {
+      objectUrl = URL.createObjectURL(source)
+      image = await loadImage(objectUrl)
+    }
+
+    const sourceWidth = bitmap?.width ?? image?.naturalWidth ?? 0
+    const sourceHeight = bitmap?.height ?? image?.naturalHeight ?? 0
+    const drawable = bitmap ?? image
+    if (!drawable || sourceWidth === 0 || sourceHeight === 0) return source
+
+    const longestEdge = Math.max(sourceWidth, sourceHeight)
+    const edgeTargets = Array.from(
+      new Set(PHOTO_EDGE_TARGETS.map((edge) => Math.min(edge, longestEdge))),
     )
-    return optimized ?? source
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    if (!context) return source
+
+    let lastCandidate: Blob | null = null
+    for (const edge of edgeTargets) {
+      const scale = Math.min(1, edge / longestEdge)
+      const width = Math.max(1, Math.round(sourceWidth * scale))
+      const height = Math.max(1, Math.round(sourceHeight * scale))
+      canvas.width = width
+      canvas.height = height
+
+      for (const quality of PHOTO_QUALITIES) {
+        context.clearRect(0, 0, width, height)
+        context.drawImage(drawable, 0, 0, width, height)
+        const candidate = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, 'image/jpeg', quality),
+        )
+        if (!candidate) continue
+        lastCandidate = candidate
+        if (candidate.size <= MAX_PHOTO_UPLOAD_BYTES) return candidate
+      }
+    }
+
+    // The smallest candidate is still more useful than rejecting the photo;
+    // the normal 1600px path is already comfortably below the limit for phone
+    // photos, while this protects against unusually detailed images.
+    return lastCandidate ?? source
   } catch {
     // A browser that cannot decode an unusual image format should not make a
     // haunt impossible to leave; the normal upload path remains the fallback.
     return source
+  } finally {
+    bitmap?.close()
+    if (objectUrl) URL.revokeObjectURL(objectUrl)
   }
+}
+
+function loadImage(objectUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.decoding = 'async'
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('could not decode image'))
+    image.src = objectUrl
+  })
 }
 
 /** Best-effort cleanup that never hides the original upload or RPC failure. */
