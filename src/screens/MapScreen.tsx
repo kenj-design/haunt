@@ -70,6 +70,77 @@ type MarkerPosition = {
   labelShift: number
 }
 
+type HauntClusterMember = {
+  haunt: Haunt
+  isOwn: boolean
+  position: MarkerPosition
+}
+
+type ClusterChooserState = { hauntIds: string[] }
+
+/** Nearby projected centres merge into one quiet marker until the map resolves them. */
+const CLUSTER_JOIN_DISTANCE = 112
+/** A little hysteresis keeps the cluster from flickering at the join boundary. */
+const CLUSTER_SPLIT_DISTANCE = 136
+
+function findMarkerClusters(
+  positions: Record<string, MarkerPosition>,
+  previousClusters: string[][],
+): string[][] {
+  const entries = Object.entries(positions)
+    .map(([id, position]) => ({ id, position }))
+    .sort((a, b) => a.position.left - b.position.left || a.position.top - b.position.top)
+  const parent = entries.map((_, index) => index)
+  const find = (index: number): number => {
+    if (parent[index] !== index) parent[index] = find(parent[index])
+    return parent[index]
+  }
+  const join = (left: number, right: number) => {
+    const leftRoot = find(left)
+    const rightRoot = find(right)
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot
+  }
+  const previousClusterById = new Map<string, string>()
+  previousClusters.forEach((ids) => {
+    const key = ids.slice().sort().join('\u0000')
+    ids.forEach((id) => previousClusterById.set(id, key))
+  })
+
+  for (let left = 0; left < entries.length; left++) {
+    for (let right = left + 1; right < entries.length; right++) {
+      const dx = entries[right].position.left - entries[left].position.left
+      if (dx > CLUSTER_SPLIT_DISTANCE) break
+      const leftId = entries[left].id
+      const rightId = entries[right].id
+      const isExistingPair =
+        previousClusterById.has(leftId) &&
+        previousClusterById.get(leftId) === previousClusterById.get(rightId)
+      const radius = isExistingPair ? CLUSTER_SPLIT_DISTANCE : CLUSTER_JOIN_DISTANCE
+      const dy = entries[right].position.top - entries[left].position.top
+      if (dx * dx + dy * dy <= radius * radius) join(left, right)
+    }
+  }
+
+  const groups = new Map<number, string[]>()
+  entries.forEach(({ id }, index) => {
+    const root = find(index)
+    const group = groups.get(root) ?? []
+    group.push(id)
+    groups.set(root, group)
+  })
+  return [...groups.values()]
+    .filter((ids) => ids.length > 1)
+    .map((ids) => ids.sort())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+}
+
+function sameClusters(left: string[][], right: string[][]) {
+  return (
+    left.length === right.length &&
+    left.every((group, index) => group.length === right[index].length && group.every((id, member) => id === right[index][member]))
+  )
+}
+
 /** Room a name needs on either side of its zone before it runs off the frame. */
 const LABEL_HALF_WIDTH = 78
 /** A restrained echo of the map's bearing, keeping captions subtly grounded. */
@@ -78,6 +149,46 @@ const LABEL_TILT_DEGREES = MAP_BEARING / 2
 const MAP_LABEL_MIN_ZOOM = 14.5
 /** Shroud shapes cycle through this many variants. */
 const SHROUD_VARIANTS = 17
+
+/** Shared marker artwork so clustered and individual haunts keep the same fog/orb treatment. */
+function HauntArtwork({
+  haunt,
+  isOwn,
+  position,
+}: {
+  haunt: Haunt
+  isOwn: boolean
+  position: MarkerPosition
+}) {
+  const isFof = haunt.visibility === 'fof' && !isOwn
+  const isArrived = haunt.status === 'arrived' && !isFof
+  const isVisited = haunt.status === 'visited' && !isFof
+  const seed = haunt.shroudSeed ?? stringSeed(haunt.id) % SHROUD_VARIANTS
+
+  return (
+    <div
+      className="haunt-zone zone-breathe pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+      style={{ width: position.width || 76, height: position.height || 76, animationDelay: `${(haunt.zone.x * 37) % 4000}ms` }}
+    >
+      {isVisited ? (
+        <span className="haunt-memory-marker relative flex h-10 w-10 items-center justify-center rounded-full">
+          <span className="haunt-memory-orb" aria-hidden="true" />
+        </span>
+      ) : (
+        <div
+          className={`haunt-field relative h-full w-full ${isFof ? 'opacity-55 blur-[0.4px]' : isArrived ? 'opacity-50' : 'opacity-100'}`}
+        >
+          <HauntShader
+            seed={seed + 1}
+            shape={haunt.shroudPath}
+            temperament={haunt.shroudTemperament}
+          />
+          {isArrived && <span className="haunt-discovered-ring pointer-events-none absolute inset-[7%] rounded-full" />}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Zone({
   haunt,
@@ -92,46 +203,22 @@ function Zone({
   position: MarkerPosition
   showLabel: boolean
 }) {
-  const width = position.width || 76
   const height = position.height || 76
   const isFof = haunt.visibility === 'fof' && !isOwn
-  const isArrived = haunt.status === 'arrived' && !isFof
-  const isVisited = haunt.status === 'visited' && !isFof
-  const seed = haunt.shroudSeed ?? stringSeed(haunt.id) % SHROUD_VARIANTS
   return (
     <button
+      type="button"
       onClick={onOpen}
-      className="group absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+      className="haunt-marker-emerge group absolute z-10 flex h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full"
       style={{ left: position.left, top: position.top }}
-      aria-label={haunt.name}
+      aria-label={isFof ? 'Open sealed nearby haunt' : `Open ${haunt.name}`}
     >
-      <div
-        className="haunt-zone zone-breathe relative flex items-center justify-center"
-        style={{ width, height, animationDelay: `${(haunt.zone.x * 37) % 4000}ms` }}
-      >
-        {isVisited ? (
-          <>
-            <span className="haunt-memory-marker relative flex h-10 w-10 items-center justify-center rounded-full">
-              <span className="haunt-memory-orb" aria-hidden="true" />
-            </span>
-          </>
-        ) : (
-          <div
-            className={`haunt-field relative h-full w-full ${isFof ? 'opacity-55 blur-[0.4px]' : isArrived ? 'opacity-50' : 'opacity-100'}`}
-          >
-            <HauntShader
-              seed={seed + 1}
-              shape={haunt.shroudPath}
-              temperament={haunt.shroudTemperament}
-            />
-            {isArrived && <span className="haunt-discovered-ring pointer-events-none absolute inset-[7%] rounded-full" />}
-          </div>
-        )}
-      </div>
+      <HauntArtwork haunt={haunt} isOwn={isOwn} position={position} />
       {showLabel && (
         <div
-          className="map-haunt-label pressable-subtle absolute top-[calc(100%+4px)] left-1/2 max-w-[46vw] truncate rounded-full border border-white/[0.11] bg-black/72 px-2.5 py-1 text-white/88 shadow-lg backdrop-blur-xl transition-colors duration-200 group-hover:bg-black/90 group-active:bg-black/90"
+          className="map-haunt-label pointer-events-none pressable-subtle absolute left-1/2 max-w-[46vw] truncate rounded-full border border-white/[0.11] bg-black/72 px-2.5 py-1 text-white/88 shadow-lg backdrop-blur-xl transition-colors duration-200 group-hover:bg-black/90 group-active:bg-black/90"
           style={{
+            top: `calc(50% + ${height / 2 + 4}px)`,
             transform: `translateX(calc(-50% + ${position.labelShift}px)) rotate(${LABEL_TILT_DEGREES}deg)`,
             transformOrigin: 'center top',
           }}
@@ -140,6 +227,146 @@ function Zone({
         </div>
       )}
     </button>
+  )
+}
+
+function HauntCluster({
+  left,
+  top,
+  members,
+  isExpanded,
+  onOpen,
+}: {
+  left: number
+  top: number
+  members: HauntClusterMember[]
+  isExpanded: boolean
+  onOpen: (trigger: HTMLButtonElement) => void
+}) {
+  const visibleMembers = members.slice(0, 4)
+
+  return (
+    <button
+      type="button"
+      onClick={(event) => onOpen(event.currentTarget)}
+      className="pressable absolute z-10 flex h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full"
+      style={{ left, top }}
+      aria-haspopup="dialog"
+      aria-expanded={isExpanded}
+      aria-label={`Zoom in to choose between ${members.length} nearby haunts`}
+    >
+      <span className="map-cluster-glyph" aria-hidden="true">
+        {visibleMembers.map((member) => {
+          // Each haunt keeps its own shroud/orb state, but the cluster preview
+          // is a compact composition rather than a stack of full-size zones.
+          const extent = Math.max(member.position.width, member.position.height, 1)
+          const scale = Math.min(1, 62 / extent)
+          const artPosition = {
+            ...member.position,
+            width: member.position.width * scale,
+            height: member.position.height * scale,
+          }
+          const offsetX = member.position.left - left
+          const offsetY = member.position.top - top
+          const offsetLength = Math.hypot(offsetX, offsetY)
+          const offsetScale = offsetLength > 0 ? Math.min(0.13, 9 / offsetLength) : 0
+
+          return (
+            <span
+              key={member.haunt.id}
+              className="map-cluster-layer"
+              style={{
+                left: 36 + offsetX * offsetScale,
+                top: 36 + offsetY * offsetScale,
+                width: artPosition.width,
+                height: artPosition.height,
+              }}
+            >
+              <HauntArtwork haunt={member.haunt} isOwn={member.isOwn} position={artPosition} />
+            </span>
+          )
+        })}
+      </span>
+    </button>
+  )
+}
+
+function HauntClusterChooser({
+  haunts,
+  left,
+  top,
+  viewerHandle,
+  origin,
+  onClose,
+  onSelect,
+}: {
+  haunts: Haunt[]
+  left: number
+  top: number
+  viewerHandle: string
+  origin: { x: number; y: number }
+  onClose: () => void
+  onSelect: (haunt: Haunt) => void
+}) {
+  const firstChoiceRef = useRef<HTMLButtonElement>(null)
+
+  useLayoutEffect(() => {
+    firstChoiceRef.current?.focus()
+  }, [])
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[64]">
+      <section
+        role="dialog"
+        aria-label="Choose a nearby haunt"
+        className="map-cluster-choice pointer-events-auto absolute overflow-hidden rounded-[22px] border border-white/[0.15] shadow-[0_20px_56px_rgba(0,0,0,.58)] backdrop-blur-2xl"
+        style={{ left, top, transformOrigin: `${origin.x}px ${origin.y}px` }}
+      >
+        <div className="flex items-center justify-between border-b border-white/[0.08] px-3.5 py-3">
+          <p className="text-[12px] font-medium tracking-[-0.01em] text-white/90">Choose a haunt</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="pressable flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white/56 transition-colors hover:bg-white/[0.08] hover:text-white"
+            aria-label="Close haunt chooser"
+          >
+            <X size={14} strokeWidth={1.6} />
+          </button>
+        </div>
+        <div className="no-scrollbar max-h-[min(260px,calc(100dvh-150px))] overflow-y-auto overscroll-contain p-1.5">
+          {haunts.map((haunt, index) => {
+            const isFof = haunt.visibility === 'fof' && haunt.finderHandle !== viewerHandle
+            return (
+              <button
+                key={haunt.id}
+                ref={index === 0 ? firstChoiceRef : undefined}
+                type="button"
+                onClick={() => onSelect(haunt)}
+                className="pressable flex w-full cursor-pointer items-center gap-2.5 rounded-[15px] px-2 py-2 text-left transition-colors hover:bg-white/[0.07]"
+                aria-label={isFof
+                  ? `Select ???, sealed nearby, ${haunt.distanceLabel}`
+                  : `Select ${haunt.name} from ${haunt.finderHandle}, ${haunt.distanceLabel}`}
+              >
+                <span
+                  className="h-10 w-10 shrink-0 rounded-[13px] border border-white/[0.12]"
+                  style={hauntArtworkStyle(haunt)}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] font-medium text-white/90">
+                    {isFof ? '???' : haunt.name}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[9px] text-white/44">
+                    {isFof ? 'sealed nearby' : `from ${haunt.finderHandle}`} · {haunt.distanceLabel}
+                  </span>
+                </span>
+                <span className="ml-1 text-[9px] text-white/36">select</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -161,6 +388,11 @@ function SelectedPlaceCard({
   const isFof = haunt.visibility === 'fof' && !isOwn
   const statusLabel = haunt.status === 'visited' ? 'visited' : haunt.status === 'arrived' ? 'you made it' : 'sealed nearby'
   const cardRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useLayoutEffect(() => {
+    closeButtonRef.current?.focus()
+  }, [])
 
   useLayoutEffect(() => {
     const card = cardRef.current
@@ -230,9 +462,16 @@ function SelectedPlaceCard({
       className={`selected-place-card absolute inset-x-3 bottom-3 z-[60] overflow-hidden rounded-[28px] border border-white/[0.16] shadow-[0_22px_60px_rgba(0,0,0,.62)] ${isClosing ? 'is-closing' : ''}`}
       role="dialog"
       aria-label={isFof ? 'selected nearby place' : `selected place ${haunt.name}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !isClosing) {
+          event.stopPropagation()
+          onClose()
+        }
+      }}
     >
       <div className="flex items-center justify-between px-3 pt-3">
         <button
+          ref={closeButtonRef}
           type="button"
           onClick={onClose}
           className="glass-control pressable flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-white/[0.1]"
@@ -304,6 +543,10 @@ export default function MapScreen() {
   const [selectedHauntId, setSelectedHauntId] = useState<string | null>(null)
   const [selectedPlaceSource, setSelectedPlaceSource] = useState<{ x: number; y: number } | null>(null)
   const [selectedPlaceClosing, setSelectedPlaceClosing] = useState(false)
+  const [clusterGroups, setClusterGroups] = useState<string[][]>([])
+  const clusterGroupsRef = useRef<string[][]>([])
+  const [clusterChooser, setClusterChooser] = useState<ClusterChooserState | null>(null)
+  const clusterChooserTriggerRef = useRef<HTMLButtonElement | null>(null)
   const selectedPlaceCloseTimer = useRef<number | null>(null)
   const activeHaunts = haunts.filter((haunt) => isHauntActive(haunt))
   const missed = activeHaunts.find((h) => h.id === missedVisitId)
@@ -333,6 +576,7 @@ export default function MapScreen() {
   }
 
   const openSelectedPlace = (haunt: Haunt) => {
+    setClusterChooser(null)
     if (selectedPlaceCloseTimer.current !== null) {
       window.clearTimeout(selectedPlaceCloseTimer.current)
       selectedPlaceCloseTimer.current = null
@@ -343,12 +587,56 @@ export default function MapScreen() {
     setSelectedPlaceSource(marker ? { x: marker.left, y: marker.top } : null)
     setSheetOpen(false)
     const [lat, lng] = hauntLatLng(haunt.zone, location ? [location.lat, location.lng] : undefined)
-    mapRef.current?.easeTo({
-      center: [lng, lat],
-      duration: 420,
-      essential: true,
-    })
+    const map = mapRef.current
+    if (map) {
+      const target = { center: [lng, lat] as [number, number] }
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        map.jumpTo(target)
+      } else {
+        map.easeTo({ ...target, duration: 360 })
+      }
+    }
   }
+
+  const openCluster = (haunts: Haunt[], position: MarkerPosition, trigger: HTMLButtonElement) => {
+    const map = mapRef.current
+    if (!map) return
+    if (map.getZoom() >= map.getMaxZoom() - 0.01) {
+      clusterChooserTriggerRef.current = trigger
+      setClusterChooser({ hauntIds: haunts.map((haunt) => haunt.id) })
+      return
+    }
+
+    const [longitude, latitude] = map.unproject([position.left, position.top]).toArray()
+    const target = {
+      center: [longitude, latitude] as [number, number],
+      zoom: Math.min(map.getZoom() + 2.25, map.getMaxZoom()),
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      map.jumpTo(target)
+    } else {
+      map.easeTo({ ...target, duration: 360 })
+    }
+  }
+
+  const closeClusterChooser = (restoreFocus = false) => {
+    setClusterChooser(null)
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => clusterChooserTriggerRef.current?.focus())
+    }
+  }
+
+  useEffect(() => {
+    if (!clusterChooser) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setClusterChooser(null)
+      window.requestAnimationFrame(() => clusterChooserTriggerRef.current?.focus())
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [clusterChooser])
 
   // A reload forgets the in-memory fix. Restore it silently only when the
   // browser already says permission is granted; the onboarding CTA remains the
@@ -433,6 +721,11 @@ export default function MapScreen() {
       }
     })
     setMarkerPositions(next)
+    const nextClusters = findMarkerClusters(next, clusterGroupsRef.current)
+    if (!sameClusters(clusterGroupsRef.current, nextClusters)) {
+      clusterGroupsRef.current = nextClusters
+      setClusterGroups(nextClusters)
+    }
   }
 
   /**
@@ -449,6 +742,7 @@ export default function MapScreen() {
     if (!container) return
 
     const sync = () => syncMarkersRef.current()
+    const dismissClusterChooser = () => setClusterChooser(null)
     let map: MapLibreMap | null = null
 
     const createMap = () => {
@@ -488,6 +782,7 @@ export default function MapScreen() {
       // of them is animating, which is exactly when the overlays have to keep up.
       map.on('move', sync)
       map.on('resize', sync)
+      map.on('click', dismissClusterChooser)
       map.once('load', sync)
       sync()
     }
@@ -511,6 +806,7 @@ export default function MapScreen() {
       observer.disconnect()
       map?.off('move', sync)
       map?.off('resize', sync)
+      map?.off('click', dismissClusterChooser)
       map?.remove()
       mapRef.current = null
     }
@@ -659,6 +955,60 @@ export default function MapScreen() {
       (h.audience !== 'self' || h.finderHandle === user.handle) &&
       (h.visibility === 'friend' || h.finderHandle === user.handle),
   )
+  const hauntById = new Map(mappableHaunts.map((haunt) => [haunt.id, haunt] as const))
+  const clusterViews = clusterGroups.flatMap((ids) => {
+    const members = ids
+      .map((id) => ({ haunt: hauntById.get(id), position: markerPositions[id] }))
+      .filter(
+        (member): member is { haunt: Haunt; position: MarkerPosition } =>
+          member.haunt !== undefined && member.position !== undefined,
+      )
+    if (members.length < 2) return []
+    return [{
+      ids: members.map(({ haunt }) => haunt.id),
+      members: members.map(({ haunt, position }) => ({
+        haunt,
+        isOwn: haunt.finderHandle === user.handle,
+        position,
+      })),
+      position: {
+        left: members.reduce((sum, member) => sum + member.position.left, 0) / members.length,
+        top: members.reduce((sum, member) => sum + member.position.top, 0) / members.length,
+        width: 72,
+        height: 72,
+        labelShift: 0,
+      },
+    }]
+  })
+  const clusteredHauntIds = new Set(clusterViews.flatMap((cluster) => cluster.ids))
+  const chooserHaunts = clusterChooser
+    ? clusterChooser.hauntIds.map((id) => hauntById.get(id)).filter((haunt): haunt is Haunt => Boolean(haunt))
+    : []
+  const chooserPositions = clusterChooser
+    ? clusterChooser.hauntIds
+        .map((id) => markerPositions[id])
+        .filter((position): position is MarkerPosition => Boolean(position))
+    : []
+  const chooserAnchor = chooserPositions.length
+    ? {
+        left: chooserPositions.reduce((sum, position) => sum + position.left, 0) / chooserPositions.length,
+        top: chooserPositions.reduce((sum, position) => sum + position.top, 0) / chooserPositions.length,
+      }
+    : null
+  const mapWidth = mapContainerRef.current?.clientWidth || 320
+  const mapHeight = mapContainerRef.current?.clientHeight || 640
+  const chooserPosition = chooserAnchor
+    ? {
+        left: Math.max(12, Math.min(chooserAnchor.left - 140, Math.max(12, mapWidth - 292))),
+        top: Math.max(84, Math.min(chooserAnchor.top - 160, Math.max(84, mapHeight - 336))),
+      }
+    : null
+  const chooserOrigin = chooserAnchor && chooserPosition
+    ? {
+        x: Math.max(0, Math.min(chooserAnchor.left - chooserPosition.left, Math.min(280, mapWidth - 24))),
+        y: Math.max(0, Math.min(chooserAnchor.top - chooserPosition.top, mapHeight - chooserPosition.top)),
+      }
+    : null
   return (
     // no entrance animation: the map is the home surface, seen constantly
     <div className="relative h-full overflow-hidden">
@@ -676,7 +1026,7 @@ export default function MapScreen() {
       <div className="pointer-events-none absolute inset-0 z-[1] map-focus-gradient" />
       {mappableHaunts.map((h) => {
         const position = markerPositions[h.id]
-        return position ? (
+        return position && !clusteredHauntIds.has(h.id) ? (
           <Zone
             key={h.id}
             haunt={h}
@@ -687,6 +1037,27 @@ export default function MapScreen() {
           />
         ) : null
       })}
+      {clusterViews.map((cluster) => (
+        <HauntCluster
+          key={cluster.ids.join('|')}
+          left={cluster.position.left}
+          top={cluster.position.top}
+          members={cluster.members}
+          isExpanded={clusterChooser?.hauntIds.join('|') === cluster.ids.join('|')}
+          onOpen={(trigger) => openCluster(cluster.members.map(({ haunt }) => haunt), cluster.position, trigger)}
+        />
+      ))}
+      {clusterChooser && chooserPosition && chooserOrigin && chooserHaunts.length > 1 && (
+        <HauntClusterChooser
+          haunts={chooserHaunts}
+          left={chooserPosition.left}
+          top={chooserPosition.top}
+          viewerHandle={user.handle}
+          origin={chooserOrigin}
+          onClose={() => closeClusterChooser(true)}
+          onSelect={openSelectedPlace}
+        />
+      )}
       {flash && (() => {
         const haunt = haunts.find((h) => h.id === flash)
         const position = markerPositions[flash]

@@ -2075,6 +2075,84 @@ audio {
   letter-spacing: 0.005em;
 }
 
+.haunt-marker-emerge {
+  opacity: 1;
+}
+
+.map-cluster-glyph {
+  position: relative;
+  display: block;
+  width: 72px;
+  height: 72px;
+  pointer-events: none;
+  filter: drop-shadow(0 11px 20px rgba(0, 0, 0, 0.64)) drop-shadow(0 0 15px rgba(199, 218, 232, 0.08));
+}
+
+.map-cluster-layer {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.map-cluster-choice {
+  width: min(280px, calc(100% - 24px));
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), transparent 52%),
+    linear-gradient(180deg, rgba(18, 20, 25, 0.95), rgba(8, 9, 12, 0.97));
+}
+
+@keyframes haunt-marker-emerge {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes haunt-cluster-emerge {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes haunt-chooser-emerge {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .haunt-marker-emerge {
+    animation: haunt-marker-emerge 160ms var(--ease-out) both;
+  }
+  .map-cluster-glyph {
+    animation: haunt-cluster-emerge 220ms var(--ease-out) both;
+  }
+  .map-cluster-choice {
+    animation: haunt-chooser-emerge 180ms var(--ease-out) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .haunt-marker-emerge,
+  .map-cluster-glyph,
+  .map-cluster-choice {
+    animation: haunt-marker-emerge 120ms ease-out both;
+  }
+}
+
 .map-sheet {
   border-top-color: rgba(255, 255, 255, 0.15);
   background:
