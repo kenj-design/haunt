@@ -57,9 +57,16 @@ Shrouding is the rule worth re-testing after any change to `haunt_feed` or
 happens — `@alpha` had to reload before `@beta`'s visit notification showed.
 Supabase Realtime on `notifications` would close that gap.
 
-**`spatial_ref_sys` has RLS disabled.** That is PostGIS's read-only catalogue of
-map projections, created and owned by the extension. It holds no user data, and
-every table in this schema does have RLS on.
+**PostGIS must live in `extensions`, not `public`.** Its built-in
+`spatial_ref_sys` table belongs to the extension, so the project role cannot
+enable RLS on it. The table contains coordinate-system definitions, not Haunt
+data, but leaving PostGIS in `public` triggers the Security Advisor warning.
+Migration `0001` installs it in `extensions` for new databases and refuses to
+continue if it finds PostGIS elsewhere. For an existing Supabase project,
+`0011` keeps the RPCs working after the move; ask Supabase Support to move the
+extension to `extensions`; see [Supabase's PostGIS guidance](https://supabase.com/docs/guides/database/extensions/postgis).
+Supabase documents a drop-and-recreate alternative, but it can cascade through
+dependent objects and needs a backup, so this project does not automate it.
 
 
 ## The shape of it
@@ -90,6 +97,7 @@ supabase/migrations/
                                 remaining read-only tables
  0010_abuse_controls.sql       server-side quotas, media limits, and a private
                                 emergency switch for the alpha
+  0011_postgis_search_path.sql  keeps PostGIS RPCs working when its schema moves
 ```
 
 `mockDataSource.ts` is the specification. When a rule is ambiguous — what a visit
@@ -196,16 +204,19 @@ involved, a policy is enough.
      account writes a deliberately undeliverable `@haunt.invalid` address, so a
      confirmation step would strand every account at the moment it is created.
 
-3. Apply the migrations, in order. With the CLI:
+3. Apply the migrations, in order. PostGIS must be installed in the `extensions`
+   schema. If you enable it in the Dashboard first, keep the default `extensions`
+   schema selected. With the CLI:
 
    ```bash
    supabase link --project-ref <your-project-ref>
    supabase db push
    ```
 
-   Or paste each file into the SQL editor in filename order. `0001` enables the
-   `postgis` and `citext` extensions; if your plan or region blocks either, stop
-   there rather than working around it — the zone column depends on PostGIS.
+   Or paste each file into the SQL editor in filename order. `0001` installs
+   `postgis` in `extensions` and enables `citext`; if your plan or region blocks
+   either, stop there rather than working around it — the zone column depends on
+   PostGIS.
 
 4. Point the app at it:
 
@@ -222,10 +233,10 @@ involved, a policy is enough.
 5. Restart the dev server. Vite reads `.env.local` at startup only.
 
 The anon key ships inside the client bundle. That is safe **only** because RLS is
-enabled on every table and direct grants are kept narrow — the key identifies the
-app, and the signed-in user's JWT decides what they can reach. If RLS were ever
-disabled on a table, or a broad grant were added back, that key
-becomes a public door to it.
+enabled on every app-owned table exposed through the Data API and direct grants
+are kept narrow — the key identifies the app, and the signed-in user's JWT
+decides what they can reach. If RLS were ever disabled on an app table, or a
+broad grant were added back, that key becomes a public door to it.
 
 ## Accounts
 

@@ -27,12 +27,12 @@ create or replace function public.arrive_at_haunt(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = extensions, public, pg_temp
 as $$
 declare
   v_actor    uuid := auth.uid();
   v_haunt    public.haunts%rowtype;
-  v_here     geography;
+  v_here     extensions.geography;
   v_distance double precision;
 begin
   if v_actor is null then
@@ -52,8 +52,10 @@ begin
     raise exception 'this one is not yours to open yet' using errcode = '42501';
   end if;
 
-  v_here := ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography;
-  v_distance := ST_Distance(v_haunt.zone, v_here);
+  v_here := extensions.ST_SetSRID(
+    extensions.ST_MakePoint(p_lng, p_lat), 4326
+  )::extensions.geography;
+  v_distance := extensions.ST_Distance(v_haunt.zone, v_here);
 
   if v_distance > v_haunt.zone_radius_m then
     -- Reports the shortfall, not the true distance to the point: telling someone
@@ -88,11 +90,11 @@ create or replace function public.record_proximity(
 returns int
 language plpgsql
 security definer
-set search_path = public
+set search_path = extensions, public, pg_temp
 as $$
 declare
   v_actor uuid := auth.uid();
-  v_here  geography;
+  v_here  extensions.geography;
   v_count int := 0;
 begin
   if v_actor is null then
@@ -102,7 +104,9 @@ begin
     return 0;
   end if;
 
-  v_here := ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography;
+  v_here := extensions.ST_SetSRID(
+    extensions.ST_MakePoint(p_lng, p_lat), 4326
+  )::extensions.geography;
 
   insert into public.visits (haunt_id, visitor_id, near_at)
   select h.id, v_actor, now()
@@ -112,7 +116,7 @@ begin
      and (h.sleep_until is null or h.sleep_until <= now())
      -- Your own places don't ask whether you made it.
      and h.finder_id <> v_actor
-     and ST_DWithin(h.zone, v_here, h.zone_radius_m + 150)
+     and extensions.ST_DWithin(h.zone, v_here, h.zone_radius_m + 150)
      and public.can_see_haunt(h.id, v_actor)
      -- A shrouded haunt shouldn't announce itself by prompting about it.
      and not public.haunt_is_shrouded(h.id, v_actor)

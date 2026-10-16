@@ -12,8 +12,25 @@
 --   * Anything the app treats as viewer-resolved — status, visibility, distance,
 --     the pass you received — lives in `visits` and `passes`, not on `haunts`.
 
-create extension if not exists postgis;
-create extension if not exists citext;
+-- Keep PostGIS's built-in spatial_ref_sys table out of the exposed public
+-- schema. Supabase projects should install PostGIS in `extensions`.
+create schema if not exists extensions;
+do $$
+begin
+  if exists (
+    select 1
+      from pg_extension e
+      join pg_namespace n on n.oid = e.extnamespace
+     where e.extname = 'postgis'
+       and n.nspname <> 'extensions'
+  ) then
+    raise exception 'PostGIS is already installed outside extensions; move it with Supabase Support before applying this schema';
+  end if;
+end;
+$$;
+
+create extension if not exists postgis with schema extensions;
+create extension if not exists citext with schema public;
 
 -- ---------------------------------------------------------------- people ----
 
@@ -61,7 +78,7 @@ create table public.haunts (
   sleep_until                    timestamptz,
   retired                        boolean not null default false,
   -- The exact spot. Never sent to a client; see `haunt_feed`.
-  zone                           geography(Point, 4326) not null,
+  zone                           extensions.geography(Point, 4326) not null,
   zone_radius_m                  int not null default 200
                                    check (zone_radius_m between 50 and 1000),
   vibe_tags                      text[] not null default '{}',

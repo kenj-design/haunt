@@ -163,7 +163,7 @@ create or replace function public.drop_haunt(p_payload jsonb)
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = extensions, public, pg_temp
 as $$
 declare
   v_actor  uuid := auth.uid();
@@ -196,11 +196,11 @@ begin
     coalesce(p_payload ->> 'audience', 'self'),
     coalesce(p_payload ->> 'lifespan', 'lasting'),
     (nullif(p_payload ->> 'expires_on', ''))::date,
-    ST_SetSRID(
-      ST_MakePoint((p_payload ->> 'lng')::double precision,
-                   (p_payload ->> 'lat')::double precision),
+    extensions.ST_SetSRID(
+      extensions.ST_MakePoint((p_payload ->> 'lng')::double precision,
+                              (p_payload ->> 'lat')::double precision),
       4326
-    )::geography,
+    )::extensions.geography,
     coalesce((p_payload ->> 'zone_radius_m')::int, 200),
     coalesce(
       array(select jsonb_array_elements_text(p_payload -> 'vibe_tags')), '{}'::text[]

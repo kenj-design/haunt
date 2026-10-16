@@ -146,7 +146,7 @@ returns table (
 language sql
 stable
 security definer
-set search_path = public
+set search_path = extensions, public, pg_temp
 as $$
   with viewer as (select auth.uid() as id),
   visible as (
@@ -183,8 +183,12 @@ as $$
     v.retired,
     v.zone_radius_m,
     -- Snapped to a grid as wide as the zone: roughly radius/111320 degrees.
-    ST_Y(ST_SnapToGrid(v.zone::geometry, v.zone_radius_m / 111320.0)),
-    ST_X(ST_SnapToGrid(v.zone::geometry, v.zone_radius_m / 111320.0)),
+    extensions.ST_Y(
+      extensions.ST_SnapToGrid(v.zone::extensions.geometry, v.zone_radius_m / 111320.0)
+    ),
+    extensions.ST_X(
+      extensions.ST_SnapToGrid(v.zone::extensions.geometry, v.zone_radius_m / 111320.0)
+    ),
     v.shroud_path,
     v.shroud_seed,
     v.shroud_temperament,
@@ -203,7 +207,10 @@ as $$
     case when v.shrouded then 'fof' else 'friend' end,
     case
       when p_lat is null or p_lng is null then null
-      else ST_Distance(v.zone, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography)
+      else extensions.ST_Distance(
+        v.zone,
+        extensions.ST_SetSRID(extensions.ST_MakePoint(p_lng, p_lat), 4326)::extensions.geography
+      )
     end,
     case when v.shrouded then null else '@' || received.sender_handle end,
     case when v.shrouded then null else received.note end,
